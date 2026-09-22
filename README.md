@@ -20,6 +20,35 @@ Data Center.
 > published to PyPI yet — the install instructions below use a git URL until
 > it is.
 
+## How a review flows
+
+Seven stages, each handing the next exactly one thing. Only three of them
+call a model, and each of those is a round trip out and back — everything
+else is parsing, searching and text matching.
+
+```mermaid
+flowchart LR
+    A["1 Trigger<br/>CI on a pull request"] --> B["2 Collect<br/>diff + file versions"]
+    B --> C["3 Build context<br/>Tree-sitter AST + caller search"]
+    C --> D["4 Propose<br/>one call per changed file"]
+    D --> E["5 Verify<br/>five checks"]
+    E --> F["6 Summarize<br/>one call per pull request"]
+    F --> G["7 Publish<br/>PR comments"]
+
+    M(["Model via LiteLLM &mdash; your key, any provider"])
+    D <-->|"file diff + context / candidate findings"| M
+    E <-->|"finding + evidence / verdict"| M
+    F <-->|"verified findings / grouped summary"| M
+
+    E -.->|"no quote, off-diff line, duplicate, low confidence"| X["dropped, with the reason recorded"]
+```
+
+Stage 3 is where the interesting work happens, and it calls no model at all:
+a changed line becomes the whole function that contains it, that function's
+real callers are found by text search, and a changed signature promotes those
+callers to must-include &mdash; which is how a break in a file the pull request
+never touched still reaches the reviewer.
+
 ## Why
 
 Most AI PR reviewers optimize for *coverage* — say something about everything.
