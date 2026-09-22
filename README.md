@@ -22,9 +22,12 @@ Data Center.
 
 ## How a review flows
 
-Seven stages, each handing the next exactly one thing. Only three of them
-call a model, and each of those is a round trip out and back — everything
-else is parsing, searching and text matching.
+Seven stages, each handing the next exactly one thing. The dotted lines are
+the only three model calls, and each is a round trip: stage 4 sends one file's
+diff with the assembled context and gets candidate findings back, stage 5
+sends a single finding with its evidence and gets a verdict, stage 6 sends the
+verified set and gets one grouped summary. Everything else — parsing,
+searching, quote matching, fingerprinting — is ordinary code.
 
 ```mermaid
 flowchart TD
