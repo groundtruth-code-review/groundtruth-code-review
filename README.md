@@ -168,7 +168,7 @@ so a Tekton task, an Argo Workflows step or a Jenkins-on-Kubernetes agent can
 run the review as a pod:
 
 ```yaml
-image: ghcr.io/varunkumar-dev/groundtruth-review:v1
+image: ghcr.io/varunkumar-dev/groundtruth-review:0.1.0
 args: ["review", "--repo", "/workspace", "--base", "origin/main", "--format", "json"]
 env:
   - name: ANTHROPIC_API_KEY
