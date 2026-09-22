@@ -8,7 +8,7 @@ one.
 ## Setup
 
 ```bash
-git clone https://github.com/varun3536/groundtruth-review
+git clone https://github.com/varunkumar-dev/groundtruth-review
 cd groundtruth-review
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
