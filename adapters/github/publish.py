@@ -131,9 +131,17 @@ def upsert_summary(
     run does not list every comment on the pull request twice.
     """
     marker_comment = previous if previous is not None else find_previous_summary(client, pr_number)
-    if marker_comment:
+    if not marker_comment:
+        client.create_issue_comment(pr_number, body)
+        return
+
+    try:
         client.update_issue_comment(marker_comment["id"], body)
-    else:
+    except GitHubApiError:
+        # The comment we meant to edit is gone, locked, or on a resolved
+        # thread. Posting a fresh one costs a duplicate summary; letting
+        # this raise would cost the whole review, because the inline
+        # comments are posted after this call.
         client.create_issue_comment(pr_number, body)
 
 

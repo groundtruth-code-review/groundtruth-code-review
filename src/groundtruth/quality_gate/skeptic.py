@@ -19,6 +19,11 @@ from typing import Protocol
 
 from .models import Finding
 
+# The reason string a failed skeptic call drops a finding with. Named here
+# so the caller can count these without matching on prose that might be
+# reworded later.
+SKEPTIC_CALL_FAILED = "skeptic call failed"
+
 _SKEPTIC_SYSTEM_PROMPT = """\
 You are a skeptical staff engineer auditing an AI code-review finding before
 it is posted to a real pull request. Using ONLY the evidence provided —
@@ -87,7 +92,7 @@ def cross_examine(finding: Finding, evidence: str, llm: JsonLlm) -> SkepticVerdi
         # not silently skipped (skipping would let an unverified finding
         # through the same door as a verified one).
         return SkepticVerdict(
-            is_real=False, is_actionable=False, confidence=0.0, reason="skeptic call failed"
+            is_real=False, is_actionable=False, confidence=0.0, reason=SKEPTIC_CALL_FAILED
         )
     return SkepticVerdict.from_json(raw)
 

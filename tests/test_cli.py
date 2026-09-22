@@ -487,3 +487,88 @@ def test_a_fingerprint_from_an_earlier_push_is_not_posted_again(repo):
                         seen_fingerprints=already)
     assert second.findings == []
     assert second.dropped[0].dropped_at == DropStage.DEDUPE
+
+
+# --- a review that did not run must never read as a clean diff ------------
+
+class BrokenLlm(FakeLlm):
+    """Every review call raises; the skeptic and estimates still work."""
+
+    def complete_json(self, system, user):
+        if _role_of(system) == "review":
+            self.review_calls += 1
+            raise RuntimeError("provider unavailable")
+        return super().complete_json(system, user)
+
+
+def test_a_review_whose_calls_all_failed_is_reported_as_incomplete(repo):
+    repo_path, base_sha = repo
+    outcome = run_review(repo_path, base=base_sha, head="HEAD", llm=BrokenLlm())
+
+    assert outcome.findings == []
+    assert outcome.review_incomplete is True
+    assert outcome.review_failures == outcome.review_calls > 0
+
+
+def test_the_text_output_says_the_review_did_not_run(repo):
+    repo_path, base_sha = repo
+    outcome = run_review(repo_path, base=base_sha, head="HEAD", llm=BrokenLlm())
+    text = render_text(outcome)
+
+    assert "did not run" in text
+    # the exact sentence that used to be a lie
+    assert "No findings survived the quality gate." not in text
+
+
+def test_the_json_carries_the_incomplete_flag_for_adapters(repo):
+    repo_path, base_sha = repo
+    outcome = run_review(repo_path, base=base_sha, head="HEAD", llm=BrokenLlm())
+    payload = json.loads(render_json(outcome))
+
+    assert payload["review_incomplete"] is True
+    assert payload["review_failures"] == payload["review_calls"] > 0
+
+
+def test_a_working_review_is_not_flagged_incomplete(repo):
+    repo_path, base_sha = repo
+    outcome = run_review(repo_path, base=base_sha, head="HEAD",
+                         llm=FakeLlm(review_response={"findings": [FINDING]}))
+
+    assert outcome.review_incomplete is False
+    assert outcome.review_failures == 0
+    assert "WARNING" not in render_text(outcome)
+
+
+def test_findings_dropped_by_a_failed_verify_call_are_counted_separately(repo):
+    # dropped because the checker broke, not because the finding was judged
+    # wrong -- the reader needs to be able to tell those apart
+    class BrokenSkeptic(FakeLlm):
+        def complete_json(self, system, user):
+            if _role_of(system) == "skeptic":
+                raise RuntimeError("provider unavailable")
+            return super().complete_json(system, user)
+
+    repo_path, base_sha = repo
+    outcome = run_review(repo_path, base=base_sha, head="HEAD",
+                         llm=BrokenSkeptic(review_response={"findings": [FINDING]}))
+
+    assert outcome.findings == []
+    assert outcome.verify_failures == 1
+    assert "verification call failed" in render_text(outcome)
+
+
+# --- the summary must never cost findings that already passed -------------
+
+def test_a_summary_over_the_ceiling_is_skipped_not_fatal(repo):
+    # the cheapest call in the run must not be able to discard the findings
+    # the expensive calls already produced and verified
+    repo_path, base_sha = repo
+    llm = FakeLlm(review_response={"findings": [FINDING]}, cost=0.4)
+    config = Config(max_cost_per_run=1.00)
+
+    outcome = run_review(repo_path, base=base_sha, head="HEAD", config=config, llm=llm)
+
+    assert len(outcome.findings) == 1          # the work survives
+    assert outcome.summary is None             # only the summary is given up
+    assert llm.summary_calls == 0
+    assert "summary skipped" in outcome.message

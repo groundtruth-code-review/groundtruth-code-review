@@ -12,12 +12,33 @@ trusted to do both.
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 
 from .context_engine import ContextBlock, DiffMap, FileDiff, Hunk, render_file_diff
 from .llm import LlmClient
 from .quality_gate.models import Finding, Severity
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class CallTally:
+    """How many review calls were made, and how many of them failed.
+
+    A failed call returns no findings, which on its own is indistinguishable
+    from a file with nothing wrong in it. Without counting, a review whose
+    every call failed -- a revoked key, a provider outage, a model that is
+    rate-limiting -- reports "no findings" and reads as "your code is fine".
+    That is the most expensive thing this tool could get wrong, because the
+    reader has no reason to doubt it.
+    """
+
+    made: int = 0
+    failed: int = 0
+
+    @property
+    def all_failed(self) -> bool:
+        return self.made > 0 and self.failed == self.made
 
 _REVIEW_SYSTEM_PROMPT = """\
 You are a senior code reviewer. Find real problems in the CHANGED code shown
@@ -112,6 +133,7 @@ def propose_findings(
     llm: LlmClient,
     dimensions: list[str] | None = None,
     label: str = "",
+    tally: CallTally | None = None,
 ) -> list[Finding]:
     """Ask the model to review `diff_text` and return whatever it proposes,
     parsed into `Finding`s. Returns `[]` on any failure (a broken call, a
@@ -128,9 +150,18 @@ def propose_findings(
 
     _log_prompt_size(llm, label, system, diff_text, context_text, user)
 
+    if tally is not None:
+        tally.made += 1
+
     try:
         raw = llm.complete_json(system, user)
     except Exception:
+        # Still "nothing to say this run" for the caller, but now it is
+        # countable, so the run can tell the reader the difference between a
+        # clean file and a call that never came back.
+        if tally is not None:
+            tally.failed += 1
+        logger.info("review_call_failed file=%s", label or "(unlabeled)")
         return []
 
     items = raw.get("findings", []) if isinstance(raw, dict) else []
@@ -183,6 +214,7 @@ def propose_findings_for_diffmap(
     llm: LlmClient,
     dimensions: list[str] | None = None,
     max_diff_tokens_per_call: int | None = None,
+    tally: CallTally | None = None,
 ) -> list[Finding]:
     """The real entry point `cli.py` uses — one review call per changed
     file, not one call over the whole PR.
@@ -216,6 +248,6 @@ def propose_findings_for_diffmap(
             label = path if len(groups) == 1 else f"{path} (part {index + 1}/{len(groups)})"
             group_text = render_file_diff(path, file_diff, group)
             findings.extend(
-                propose_findings(group_text, context_blocks, llm, dimensions, label=label)
+                propose_findings(group_text, context_blocks, llm, dimensions, label=label, tally=tally)
             )
     return findings

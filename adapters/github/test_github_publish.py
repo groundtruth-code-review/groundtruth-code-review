@@ -201,3 +201,22 @@ def test_summary_text_from_the_model_leads_the_comment():
         "dropped_count": 0, "model": "m", "estimated_cost_usd": 0.01,
     })
     assert body.index("One contract break in the invoice path.") < body.index("1 verified finding")
+
+
+def test_a_deleted_summary_comment_does_not_kill_the_review():
+    # the inline comments are posted after the summary, so an unguarded
+    # failure here used to take the whole review down with it
+    calls = []
+
+    class Client:
+        def update_issue_comment(self, comment_id, body):
+            calls.append(("PATCH", comment_id))
+            raise publish.GitHubApiError("PATCH -> 404: Not Found")
+
+        def create_issue_comment(self, pr_number, body):
+            calls.append(("POST", pr_number))
+            return {"id": 7}
+
+    upsert_summary(Client(), 42, "body", previous={"id": 99, "body": "old"})
+
+    assert calls == [("PATCH", 99), ("POST", 42)]

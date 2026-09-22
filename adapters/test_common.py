@@ -104,3 +104,29 @@ def test_a_failing_cli_run_raises_with_its_stderr():
             raise AssertionError("a failed review must not pass silently")
     finally:
         common.subprocess.run = original
+
+
+# --- an incomplete review must say so on the pull request -----------------
+
+def test_a_failed_review_warns_instead_of_claiming_no_findings():
+    body = render_summary({
+        "findings": [], "dropped_count": 0,
+        "review_incomplete": True, "review_calls": 3, "review_failures": 3,
+    })
+    assert "[!WARNING]" in body
+    assert "did not run" in body
+    assert "No findings survived the quality gate." not in body
+
+
+def test_a_partially_failed_review_says_which_files_were_missed():
+    body = render_summary({
+        "findings": [FINDING], "dropped_count": 0,
+        "review_incomplete": False, "review_calls": 5, "review_failures": 2,
+    })
+    assert "2 of 5 review calls failed" in body
+
+
+def test_a_healthy_review_carries_no_warning():
+    body = render_summary({"findings": [FINDING], "dropped_count": 0,
+                           "review_incomplete": False, "review_failures": 0})
+    assert "[!WARNING]" not in body

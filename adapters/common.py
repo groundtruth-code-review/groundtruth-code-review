@@ -78,8 +78,28 @@ def render_summary(outcome: dict) -> str:
         lines.append(outcome["message"])
         return "\n".join(lines)
 
+    if outcome.get("review_incomplete"):
+        lines.append(
+            "> [!WARNING]\n"
+            "> **The review did not run.** Every model call failed, so this is not a "
+            "clean bill of health. Check the provider key, the model name and the "
+            "provider's status, then re-run."
+        )
+        lines.append("")
+    elif outcome.get("review_failures"):
+        lines.append(
+            f"> [!WARNING]\n"
+            f"> {outcome['review_failures']} of {outcome.get('review_calls', 0)} review calls "
+            f"failed, so some files in this pull request were not reviewed."
+        )
+        lines.append("")
+
     if not findings:
-        lines.append("No findings survived the quality gate.")
+        lines.append(
+            "The review did not complete, so nothing is reported here."
+            if outcome.get("review_incomplete")
+            else "No findings survived the quality gate."
+        )
     else:
         count = len(findings)
         if outcome.get("summary"):

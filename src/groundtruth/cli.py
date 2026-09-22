@@ -21,8 +21,14 @@ from .config import Config, ConfigError, load_config
 from .context_engine import ContextBlock, DiffMap, build_context, parse_diff, render_file_diff
 from .git_source import GitError, git_diff, load_sources
 from .llm import CostEstimate, LlmClient
-from .quality_gate import GateVerdict, line_in_changed_hunk, run_gate, skeptic_prompts
-from .reviewer import propose_findings_for_diffmap, system_prompt
+from .quality_gate import (
+    SKEPTIC_CALL_FAILED,
+    GateVerdict,
+    line_in_changed_hunk,
+    run_gate,
+    skeptic_prompts,
+)
+from .reviewer import CallTally, propose_findings_for_diffmap, system_prompt
 from .summary import summary_prompts, write_summary
 
 
@@ -38,6 +44,19 @@ class ReviewOutcome:
     cut: list[str]
     message: str = ""
     summary: str | None = None
+    review_calls: int = 0
+    review_failures: int = 0
+    verify_failures: int = 0
+
+    @property
+    def review_incomplete(self) -> bool:
+        """True when the model never answered, so silence means nothing.
+
+        A review that made no calls (a dry run, an empty diff) is not
+        incomplete; a review whose calls all failed is, and the difference
+        has to reach the reader.
+        """
+        return self.review_calls > 0 and self.review_failures == self.review_calls
 
 
 def _add_estimates(*estimates: CostEstimate | None) -> CostEstimate | None:
@@ -67,15 +86,19 @@ def _add_estimates(*estimates: CostEstimate | None) -> CostEstimate | None:
     )
 
 
+def _over_ceiling(estimate: CostEstimate | None, max_cost: float | None) -> bool:
+    if max_cost is None or estimate is None or estimate.estimated_cost_usd is None:
+        return False
+    return estimate.estimated_cost_usd > max_cost
+
+
 def _check_ceiling(estimate: CostEstimate | None, max_cost: float | None, phase: str) -> None:
     """Checked before each paid phase rather than once up front, because the
     number of skeptic calls is not known until the review pass has returned
     its candidates. Stopping between phases keeps the guarantee real without
     pretending the total was knowable earlier than it was.
     """
-    if max_cost is None or estimate is None or estimate.estimated_cost_usd is None:
-        return
-    if estimate.estimated_cost_usd <= max_cost:
+    if not _over_ceiling(estimate, max_cost):
         return
     raise CostCeilingExceeded(
         f"estimated cost ${estimate.estimated_cost_usd:.4f} through the {phase} exceeds "
@@ -257,10 +280,12 @@ def run_review(
 
     _check_ceiling(review_estimate, config.max_cost_per_run, "review pass")
 
+    tally = CallTally()
     candidates = propose_findings_for_diffmap(
         diffmap, ctx.blocks, review_llm,
         dimensions=config.dimensions,
         max_diff_tokens_per_call=config.max_diff_tokens_per_call,
+        tally=tally,
     )
 
     evidence_texts = [diff_text] + [block.text for block in ctx.blocks]
@@ -285,14 +310,26 @@ def run_review(
 
     summary_estimate = None
     summary_text = None
+    skipped_summary = False
     if config.summary and report.posted:
         summary_estimate = _estimate_summary_cost(report.posted, summary_llm)
-        _check_ceiling(
-            _add_estimates(review_estimate, skeptic_estimate, summary_estimate),
-            config.max_cost_per_run,
-            "summary call",
-        )
-        summary_text = write_summary(report.posted, summary_llm)
+        projected = _add_estimates(review_estimate, skeptic_estimate, summary_estimate)
+
+        # Deliberately a skip, not the exception the earlier phases raise.
+        # By this point the findings are verified and already paid for, and
+        # raising here would throw all of them away over the cheapest call
+        # in the run -- losing the work to save a fraction of its cost.
+        if _over_ceiling(projected, config.max_cost_per_run):
+            skipped_summary = True
+            summary_estimate = None
+        else:
+            summary_text = write_summary(report.posted, summary_llm)
+
+    verify_failures = sum(1 for v in report.dropped if v.reason == SKEPTIC_CALL_FAILED)
+
+    message = ""
+    if skipped_summary:
+        message = "summary skipped: it would have crossed max_cost_per_run. Findings are unaffected."
 
     return ReviewOutcome(
         findings=report.posted,
@@ -300,6 +337,10 @@ def run_review(
         estimate=_add_estimates(review_estimate, skeptic_estimate, summary_estimate),
         cut=ctx.cut,
         summary=summary_text,
+        message=message,
+        review_calls=tally.made,
+        review_failures=tally.failed,
+        verify_failures=verify_failures,
     )
 
 
@@ -323,6 +364,10 @@ def render_json(outcome: ReviewOutcome) -> str:
         "summary": outcome.summary,
         "fingerprints": [v.fingerprint for v in outcome.findings],
         "dropped_count": len(outcome.dropped),
+        "review_incomplete": outcome.review_incomplete,
+        "review_calls": outcome.review_calls,
+        "review_failures": outcome.review_failures,
+        "verify_failures": outcome.verify_failures,
         "model": outcome.estimate.model if outcome.estimate else None,
         "estimated_cost_usd": outcome.estimate.estimated_cost_usd if outcome.estimate else None,
         "context_cut": outcome.cut,
@@ -366,10 +411,33 @@ def render_text(outcome: ReviewOutcome) -> str:
             f"  ·  {outcome.estimate.prompt_tokens:,} prompt tokens"
         )
 
+    if outcome.review_incomplete:
+        lines.extend([
+            "",
+            f"WARNING: all {outcome.review_calls} review call(s) failed. "
+            "This is not a clean diff -- the review did not run. "
+            "Check the provider key, the model name and the provider's status.",
+        ])
+    elif outcome.review_failures:
+        lines.extend([
+            "",
+            f"WARNING: {outcome.review_failures} of {outcome.review_calls} review call(s) failed, "
+            "so some files were not reviewed.",
+        ])
+
+    if outcome.verify_failures:
+        lines.extend([
+            "",
+            f"WARNING: {outcome.verify_failures} finding(s) were dropped because the verification "
+            "call failed, not because they were judged wrong.",
+        ])
+
     if not outcome.findings:
         if lines:
             lines.append("")
-        if outcome.dropped:
+        if outcome.review_incomplete:
+            lines.append("No findings reported, because the review did not complete.")
+        elif outcome.dropped:
             # the case where naming the stage matters most: everything was
             # rejected, and "no findings" alone doesn't say whether that is
             # a clean diff, a noisy reviewer, or misreported locations
