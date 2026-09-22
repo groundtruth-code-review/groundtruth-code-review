@@ -1,0 +1,25 @@
+# Copy this job into your own .gitlab-ci.yml.
+#
+# Two things matter and are easy to miss:
+#   * GIT_DEPTH: 0 — the review diffs against the merge target, which a
+#     shallow clone does not contain.
+#   * GROUNDTRUTH_GITLAB_TOKEN — a project access token with `api` scope.
+#     The job token (CI_JOB_TOKEN) cannot post notes.
+#
+# The provider key is whichever variable your `model:` needs
+# (ANTHROPIC_API_KEY, OPENAI_API_KEY, ...). Set it as a masked, protected
+# CI/CD variable, never in this file.
+
+groundtruth-review:
+  stage: test
+  image: python:3.11-slim
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  variables:
+    GIT_DEPTH: 0
+    GROUNDTRUTH_MODEL: anthropic/claude-sonnet-5
+  before_script:
+    - pip install --quiet "git+https://github.com/YOUR_USERNAME/groundtruth-review.git#subdirectory=code"
+    - git clone --depth 1 https://github.com/YOUR_USERNAME/groundtruth-review.git /tmp/groundtruth
+  script:
+    - python3 /tmp/groundtruth/code/adapters/gitlab/publish.py

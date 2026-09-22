@@ -1,0 +1,26 @@
+# Copy this step into your own bitbucket-pipelines.yml.
+#
+# Two things matter and are easy to miss:
+#   * clone depth: full — the review diffs against the destination branch,
+#     which a shallow clone does not contain.
+#   * The destination branch arrives as a name, not a SHA, so the clone
+#     needs its remote ref: the step fetches it before reviewing.
+#
+# Set GROUNDTRUTH_BITBUCKET_USER and GROUNDTRUTH_BITBUCKET_APP_PASSWORD as
+# secured repository variables, along with the provider key your `model:`
+# needs (ANTHROPIC_API_KEY, OPENAI_API_KEY, ...). Never in this file.
+
+pipelines:
+  pull-requests:
+    '**':
+      - step:
+          name: Groundtruth review
+          image: python:3.11-slim
+          clone:
+            depth: full
+          script:
+            - git fetch origin "$BITBUCKET_PR_DESTINATION_BRANCH"
+            - pip install --quiet "git+https://github.com/YOUR_USERNAME/groundtruth-review.git#subdirectory=code"
+            - git clone --depth 1 https://github.com/YOUR_USERNAME/groundtruth-review.git /tmp/groundtruth
+            - export GROUNDTRUTH_MODEL=anthropic/claude-sonnet-5
+            - python3 /tmp/groundtruth/code/adapters/bitbucket_cloud/publish.py

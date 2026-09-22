@@ -1,0 +1,37 @@
+{
+  "name": "a finding quoting code that was never written",
+  "diff": "diff --git a/credit.py b/credit.py\n--- a/credit.py\n+++ b/credit.py\n@@ -1,2 +1,2 @@\n def apply_credit(balance, credit):\n-    return balance + credit\n+    return balance - credit\n",
+  "head_sources": {
+    "credit.py": "def apply_credit(balance, credit):\n    return balance - credit\n"
+  },
+  "base_sources": {
+    "credit.py": "def apply_credit(balance, credit):\n    return balance + credit\n"
+  },
+  "expected_findings": [
+    {
+      "file": "credit.py",
+      "line": 2,
+      "title_contains": "sign"
+    }
+  ],
+  "recorded": {
+    "review": {
+      "findings": [
+        {
+          "file": "credit.py",
+          "line": 2,
+          "category": "correctness",
+          "severity": "high",
+          "confidence": 0.9,
+          "title": "sign flip: the credit is subtracted from the balance",
+          "quoted_code": "    return balance - credit_amount_total"
+        }
+      ]
+    },
+    "skeptic": {
+      "is_real": true,
+      "is_actionable": true,
+      "confidence": 0.9
+    }
+  }
+}

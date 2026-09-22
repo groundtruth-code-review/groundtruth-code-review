@@ -1,0 +1,38 @@
+{
+  "name": "parameterised query replaced by string concatenation",
+  "diff": "diff --git a/users.py b/users.py\n--- a/users.py\n+++ b/users.py\n@@ -1,3 +1,3 @@\n def find_user(cur, raw_id):\n-    cur.execute(\"select * from users where id = %s\", (raw_id,))\n+    cur.execute(\"select * from users where id = \" + raw_id)\n     return cur.fetchone()\n",
+  "head_sources": {
+    "users.py": "def find_user(cur, raw_id):\n    cur.execute(\"select * from users where id = \" + raw_id)\n    return cur.fetchone()\n"
+  },
+  "base_sources": {
+    "users.py": "def find_user(cur, raw_id):\n    cur.execute(\"select * from users where id = %s\", (raw_id,))\n    return cur.fetchone()\n"
+  },
+  "expected_findings": [
+    {
+      "file": "users.py",
+      "line": 2,
+      "title_contains": "injection"
+    }
+  ],
+  "recorded": {
+    "review": {
+      "findings": [
+        {
+          "file": "users.py",
+          "line": 2,
+          "category": "security",
+          "severity": "high",
+          "confidence": 0.95,
+          "title": "SQL injection: raw_id is concatenated into the query",
+          "quoted_code": "    cur.execute(\"select * from users where id = \" + raw_id)"
+        }
+      ]
+    },
+    "skeptic": {
+      "is_real": true,
+      "is_actionable": true,
+      "confidence": 0.95,
+      "reason": "user input reaches the query unescaped"
+    }
+  }
+}

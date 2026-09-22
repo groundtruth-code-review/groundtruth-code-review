@@ -1,0 +1,22 @@
+# Secrets — never commit these, ever
+.env
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+dist/
+build/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,38 @@
+{
+  "name": "off-by-one in pagination",
+  "diff": "diff --git a/pager.py b/pager.py\n--- a/pager.py\n+++ b/pager.py\n@@ -1,4 +1,4 @@\n def page_items(items, page, per_page):\n     start = page * per_page\n-    end = start + per_page\n+    end = start + per_page + 1\n     return items[start:end]\n",
+  "head_sources": {
+    "pager.py": "def page_items(items, page, per_page):\n    start = page * per_page\n    end = start + per_page + 1\n    return items[start:end]\n"
+  },
+  "base_sources": {
+    "pager.py": "def page_items(items, page, per_page):\n    start = page * per_page\n    end = start + per_page\n    return items[start:end]\n"
+  },
+  "expected_findings": [
+    {
+      "file": "pager.py",
+      "line": 3,
+      "title_contains": "off-by-one"
+    }
+  ],
+  "recorded": {
+    "review": {
+      "findings": [
+        {
+          "file": "pager.py",
+          "line": 3,
+          "category": "correctness",
+          "severity": "medium",
+          "confidence": 0.85,
+          "title": "off-by-one: the page returns one extra item",
+          "quoted_code": "    end = start + per_page + 1"
+        }
+      ]
+    },
+    "skeptic": {
+      "is_real": true,
+      "is_actionable": true,
+      "confidence": 0.9,
+      "reason": "the slice end exceeds the page size"
+    }
+  }
+}

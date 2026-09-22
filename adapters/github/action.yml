@@ -1,0 +1,49 @@
+name: "Groundtruth Review"
+description: >-
+  AI code review that proves what it claims — deterministic context (no
+  vector DB), a verification gate before anything posts, bring your own
+  model and API key.
+author: "Varun Kumar"
+branding:
+  icon: "check-circle"
+  color: "purple"
+
+inputs:
+  model:
+    description: >-
+      LiteLLM-style model string, e.g. anthropic/claude-sonnet-5,
+      openai/gpt-4o, ollama/qwen2.5-coder. Falls back to .groundtruth.yml's
+      `model:` (or the built-in default) if left unset.
+    required: false
+    default: ""
+  github-token:
+    description: "Token used to post comments. Defaults to the job's own GITHUB_TOKEN."
+    required: false
+    default: ${{ github.token }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install groundtruth-review
+      shell: bash
+      # Installs the exact commit/ref of THIS action's own repo — never the
+      # calling workflow's repo (github.action_repository/action_ref are the
+      # action's own identity, not the caller's). TODO: switch to
+      # `pip install groundtruth-review` once it's published to PyPI.
+      run: |
+        pip install "git+https://github.com/${{ github.action_repository }}.git@${{ github.action_ref }}#subdirectory=code"
+
+    - name: Review and publish
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        GITHUB_EVENT_PATH: ${{ github.event_path }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_WORKSPACE: ${{ github.workspace }}
+        GROUNDTRUTH_MODEL: ${{ inputs.model }}
+      run: python3 "${{ github.action_path }}/publish.py"

@@ -1,0 +1,768 @@
+<title>Groundtruth Pipeline</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --bg: #eef2f1;
+    --surface: #ffffff;
+    --raised: #f7faf9;
+    --tint: #e2efec;
+    --text: #101819;
+    --soft: #405456;
+    --muted: #5f7274;
+    --line: #cfdad8;
+    --hair: #e0e8e6;
+    --accent: #0c6b64;
+    --accent-soft: #d3e8e5;
+    --flag: #9a4a19;
+    --shadow-sm: 0 1px 2px rgba(16, 24, 25, .05);
+    --shadow-md: 0 1px 3px rgba(16, 24, 25, .06), 0 8px 24px -12px rgba(16, 24, 25, .16);
+    --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+    --body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --measure: 68ch;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0a1011;
+      --surface: #121a1b;
+      --raised: #16201f;
+      --tint: #16292a;
+      --text: #e8efed;
+      --soft: #b6c5c5;
+      --muted: #91a3a4;
+      --line: #2b3a3b;
+      --hair: #223031;
+      --accent: #5bd3c6;
+      --accent-soft: #1b3a38;
+      --flag: #e39a63;
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, .35);
+      --shadow-md: 0 1px 3px rgba(0, 0, 0, .4), 0 10px 30px -14px rgba(0, 0, 0, .7);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0a1011;
+    --surface: #121a1b;
+    --raised: #16201f;
+    --tint: #16292a;
+    --text: #e8efed;
+    --soft: #b6c5c5;
+    --muted: #91a3a4;
+    --line: #2b3a3b;
+    --hair: #223031;
+    --accent: #5bd3c6;
+    --accent-soft: #1b3a38;
+    --flag: #e39a63;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .35);
+    --shadow-md: 0 1px 3px rgba(0, 0, 0, .4), 0 10px 30px -14px rgba(0, 0, 0, .7);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--body);
+    font-size: 17px;
+    line-height: 1.68;
+    padding-inline: 20px;
+    padding-block: 0 96px;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection { background: var(--accent-soft); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+
+  .wrap { max-width: 1140px; margin: 0 auto; }
+  .prose { max-width: var(--measure); }
+
+  /* ---- sticky nav ---- */
+  .topbar {
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    z-index: 5;
+    margin-inline: -20px;
+    padding: 10px 20px;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--hair);
+  }
+  .topbar-inner {
+    max-width: 1140px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .topbar-inner::-webkit-scrollbar { display: none; }
+  .brand {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: -.01em;
+    white-space: nowrap;
+  }
+  .topnav { display: flex; gap: 20px; white-space: nowrap; }
+  .topnav a {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-decoration: none;
+    padding-block: 2px;
+    border-bottom: 1px solid transparent;
+  }
+  .topnav a:hover { color: var(--text); border-bottom-color: var(--accent); }
+
+  /* ---- masthead ---- */
+  header.masthead { padding-block: 64px 40px; }
+  .masthead > * { max-width: 62ch; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 18px;
+  }
+  h1 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: clamp(34px, 7vw, 52px);
+    line-height: 1.04;
+    letter-spacing: -.028em;
+    margin: 0 0 20px;
+    text-wrap: balance;
+  }
+  .lede { font-size: 19px; line-height: 1.6; margin: 0; color: var(--text); }
+  .lede + .lede { margin-top: 16px; color: var(--soft); font-size: 17px; }
+
+  /* ---- headings ---- */
+  h2 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: clamp(24px, 3.4vw, 30px);
+    line-height: 1.18;
+    letter-spacing: -.02em;
+    margin: 0 0 20px;
+    padding-top: 28px;
+    border-top: 1px solid var(--line);
+    text-wrap: balance;
+    scroll-margin-top: 80px;
+  }
+  h2:not(:first-child) { margin-top: 68px; }
+  h3 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 19px;
+    letter-spacing: -.01em;
+    line-height: 1.3;
+    margin: 42px 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    scroll-margin-top: 80px;
+  }
+  h3 .num {
+    flex: 0 0 auto;
+    display: inline-grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-family: var(--mono);
+    font-weight: 500;
+    font-size: 11.5px;
+    letter-spacing: 0;
+  }
+
+  /* ---- text ---- */
+  p { margin: 0 0 16px; }
+  .why {
+    background: var(--raised);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 6px 6px 0;
+    padding: 14px 18px;
+    margin: 0 0 16px;
+    color: var(--soft);
+    font-size: 16px;
+  }
+  .why b { color: var(--text); font-weight: 600; }
+  ul { margin: 0 0 16px; padding-left: 22px; }
+  li { margin-bottom: 9px; padding-left: 2px; }
+  li::marker { color: var(--accent); }
+  b, strong { font-weight: 600; }
+  code {
+    font-family: var(--mono);
+    font-size: .86em;
+    background: var(--tint);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  /* ---- figure ---- */
+  figure { margin: 8px 0 0; }
+  .scroller {
+    overflow-x: auto;
+    border: 1px solid var(--hair);
+    border-radius: 12px;
+    background: var(--surface);
+    box-shadow: var(--shadow-md);
+    padding: 14px 16px;
+  }
+  .scroller svg { display: block; min-width: 860px; width: 100%; height: auto; }
+  figcaption {
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--soft);
+    margin-top: 16px;
+    max-width: var(--measure);
+  }
+  figcaption b { color: var(--text); }
+  .hint {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 10px;
+    max-width: var(--measure);
+  }
+
+  /* ---- diagram marks ---- */
+  .box { fill: var(--surface); stroke: var(--line); stroke-width: 1.2; }
+  .box.live { animation: pulse 14s linear infinite; animation-delay: calc(var(--i) * 2s); }
+  .s-num { font-family: var(--mono); font-size: 11px; fill: var(--accent); letter-spacing: .08em; }
+  .s-name { font-family: var(--display); font-size: 15px; font-weight: 600; fill: var(--text); }
+  .s-tech { font-family: var(--mono); font-size: 10.5px; fill: var(--muted); }
+  .wire { stroke: var(--line); stroke-width: 1.2; fill: none; }
+  .hand { font-family: var(--mono); font-size: 10px; fill: var(--muted); }
+  .aside-label { font-family: var(--mono); font-size: 10.5px; fill: var(--muted); }
+  .pill { fill: var(--tint); stroke: var(--line); stroke-width: 1.2; }
+  .pill-text { font-family: var(--display); font-size: 13px; font-weight: 600; fill: var(--text); }
+  .drop { stroke: var(--flag); stroke-width: 1.2; fill: none; stroke-dasharray: 3 4; }
+  .drop-text { font-family: var(--mono); font-size: 10px; fill: var(--flag); }
+  .packet { fill: var(--accent); animation: travel 14s linear infinite; animation-delay: calc(var(--i) * 2s); opacity: 0; }
+  .call { stroke: var(--accent); stroke-width: 1.4; fill: none; }
+  .call-label { font-family: var(--mono); font-size: 10px; fill: var(--accent); }
+  .tag { fill: none; stroke: var(--muted); stroke-width: 1; stroke-dasharray: 4 3; }
+  .tag-text { font-family: var(--mono); font-size: 9.5px; fill: var(--muted); letter-spacing: .02em; }
+  .packet.up { animation-name: call-out; }
+  .packet.down { animation-name: call-back; }
+
+  @keyframes call-out {
+    0%, 0.9% { opacity: 0; transform: translateY(0); }
+    1.7% { opacity: 1; }
+    4.3% { opacity: 1; }
+    5.14% { opacity: 0; transform: translateY(-52px); }
+    100% { opacity: 0; transform: translateY(-52px); }
+  }
+  @keyframes call-back {
+    0%, 5.14% { opacity: 0; transform: translateY(-52px); }
+    6% { opacity: 1; }
+    8% { opacity: 1; }
+    9.4% { opacity: 0; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(0); }
+  }
+  @keyframes travel {
+    0%, 8.571% { opacity: 0; transform: translateX(0); }
+    10% { opacity: 1; }
+    13% { opacity: 1; }
+    14.286% { opacity: 0; transform: translateX(68px); }
+    100% { opacity: 0; transform: translateX(68px); }
+  }
+  @keyframes pulse {
+    0%, 8.571% { stroke: var(--accent); stroke-width: 2; fill: var(--tint); }
+    12%, 100% { stroke: var(--line); stroke-width: 1.2; fill: var(--surface); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .packet { animation: none; opacity: 1; }
+    .box.live { animation: none; }
+    * { scroll-behavior: auto; }
+  }
+
+  /* ---- worked example ---- */
+  .step {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 30px 0 8px;
+  }
+  pre {
+    margin: 0 0 16px;
+    padding: 14px 16px;
+    background: var(--surface);
+    border: 1px solid var(--hair);
+    border-radius: 10px;
+    box-shadow: var(--shadow-sm);
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.6;
+    max-width: 940px;
+    tab-size: 2;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  pre .add { color: var(--accent); }
+  pre .del { color: var(--flag); }
+  .note { font-size: 15px; color: var(--muted); margin: 0 0 16px; max-width: var(--measure); }
+
+  /* ---- tables ---- */
+  .tablewrap {
+    overflow-x: auto;
+    margin: 22px 0 10px;
+    max-width: 940px;
+    border: 1px solid var(--hair);
+    border-radius: 12px;
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 600px;
+    font-size: 15px;
+    line-height: 1.55;
+    font-variant-numeric: tabular-nums;
+  }
+  th, td {
+    text-align: left;
+    vertical-align: top;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--hair);
+  }
+  th {
+    font-family: var(--mono);
+    font-weight: 500;
+    font-size: 10.5px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: var(--raised);
+    white-space: nowrap;
+  }
+  td:first-child { font-weight: 600; width: 22%; }
+  td:not(:first-child) { color: var(--soft); }
+  tbody tr:last-child th, tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: var(--raised); }
+
+  html { scroll-behavior: smooth; }
+</style>
+
+<nav class="topbar">
+  <div class="topbar-inner">
+    <span class="brand">Groundtruth</span>
+    <span class="topnav">
+      <a href="#stages">Stages</a>
+      <a href="#example">Example</a>
+      <a href="#models">Models</a>
+      <a href="#choices">Not used</a>
+    </span>
+  </div>
+</nav>
+
+<div class="wrap">
+  <header class="masthead">
+    <p class="eyebrow">Design overview &middot; September 2026</p>
+    <h1>Groundtruth Pipeline</h1>
+    <p class="lede">Groundtruth is an AI code reviewer that only posts a finding when it can prove it. Written in Python, MIT-licensed.</p>
+    <p class="lede">Most AI reviewers aim for coverage and comment on everything. This one aims for precision, because a wrong comment costs more trust than a missed bug. Context is parsed, not retrieved, and nothing posts without surviving verification.</p>
+  </header>
+
+  <p class="hint">The handoff, stage by stage</p>
+  <figure>
+    <div class="scroller">
+      <svg viewBox="0 0 1468 348" role="img" aria-label="Seven-stage pipeline: a trigger passes base and head commits to git collection, which passes a diff and file versions to context building, which passes labeled code blocks to the review pass, which passes candidate findings to the quality gate, which passes verified findings to the summarize step and on to the publisher. Three stages call a model as a round trip: stage 4 sends a file diff and context and receives candidate findings on a stronger tier, stage 5 sends a finding and its evidence and receives a verdict and confidence on a cheap tier, stage 6 sends the verified findings and receives one grouped summary on a cheap tier. The gate drops findings that lack a quote, sit outside the diff, duplicate an earlier one, or score too low.">
+        <defs>
+          <marker id="tip" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 1 L 9 5 L 0 9 z" fill="currentColor"></path>
+          </marker>
+        </defs>
+
+        <!-- the model and its tiers -->
+        <rect class="pill" x="668" y="14" width="564" height="38" rx="19"></rect>
+        <text class="pill-text" x="950" y="38" text-anchor="middle">Model via LiteLLM &mdash; your key</text>
+        <g>
+          <rect class="tag" x="656" y="58" width="156" height="20" rx="10"></rect>
+          <text class="tag-text" x="734" y="72" text-anchor="middle">stronger tier</text>
+          <rect class="tag" x="876" y="58" width="148" height="20" rx="10"></rect>
+          <text class="tag-text" x="950" y="72" text-anchor="middle">cheap tier</text>
+          <rect class="tag" x="1092" y="58" width="148" height="20" rx="10"></rect>
+          <text class="tag-text" x="1166" y="72" text-anchor="middle">cheap tier</text>
+        </g>
+        <g color="var(--accent)">
+          <line class="call" x1="716" y1="132" x2="716" y2="84" marker-end="url(#tip)"></line>
+          <line class="call" x1="752" y1="84" x2="752" y2="132" marker-end="url(#tip)"></line>
+          <line class="call" x1="932" y1="132" x2="932" y2="84" marker-end="url(#tip)"></line>
+          <line class="call" x1="968" y1="84" x2="968" y2="132" marker-end="url(#tip)"></line>
+        </g>
+        <g color="var(--accent)">
+          <line class="call" x1="1148" y1="132" x2="1148" y2="84" marker-end="url(#tip)"></line>
+          <line class="call" x1="1184" y1="84" x2="1184" y2="132" marker-end="url(#tip)"></line>
+        </g>
+        <g>
+          <text class="call-label" x="708" y="100" text-anchor="end">file diff +</text>
+          <text class="call-label" x="708" y="112" text-anchor="end">context &rarr;</text>
+          <text class="call-label" x="760" y="100">&larr; candidate</text>
+          <text class="call-label" x="760" y="112">findings</text>
+          <text class="call-label" x="924" y="100" text-anchor="end">finding +</text>
+          <text class="call-label" x="924" y="112" text-anchor="end">evidence &rarr;</text>
+          <text class="call-label" x="976" y="100">&larr; is it real?</text>
+          <text class="call-label" x="976" y="112">confidence</text>
+          <text class="call-label" x="1140" y="100" text-anchor="end">verified</text>
+          <text class="call-label" x="1140" y="112" text-anchor="end">findings &rarr;</text>
+          <text class="call-label" x="1192" y="100">&larr; grouped</text>
+          <text class="call-label" x="1192" y="112">summary</text>
+        </g>
+        <g>
+          <circle class="packet up" style="--i:3" cx="716" cy="136" r="4.5"></circle>
+          <circle class="packet down" style="--i:3" cx="752" cy="136" r="4.5"></circle>
+          <circle class="packet up" style="--i:4" cx="932" cy="136" r="4.5"></circle>
+          <circle class="packet down" style="--i:4" cx="968" cy="136" r="4.5"></circle>
+          <circle class="packet up" style="--i:5" cx="1148" cy="136" r="4.5"></circle>
+          <circle class="packet down" style="--i:5" cx="1184" cy="136" r="4.5"></circle>
+        </g>
+
+        <!-- stage boxes -->
+        <g>
+          <rect class="box live" style="--i:0" x="20" y="136" width="132" height="76" rx="5"></rect>
+          <text class="s-num" x="36" y="160">01</text>
+          <text class="s-name" x="36" y="182">Trigger</text>
+          <text class="s-tech" x="36" y="200">GitHub Actions</text>
+
+          <rect class="box live" style="--i:1" x="236" y="136" width="132" height="76" rx="5"></rect>
+          <text class="s-num" x="252" y="160">02</text>
+          <text class="s-name" x="252" y="182">Collect</text>
+          <text class="s-tech" x="252" y="200">git</text>
+
+          <rect class="box live" style="--i:2" x="452" y="136" width="132" height="76" rx="5"></rect>
+          <text class="s-num" x="468" y="160">03</text>
+          <text class="s-name" x="468" y="182">Context</text>
+          <text class="s-tech" x="468" y="200">Tree-sitter &middot; rg</text>
+
+          <rect class="box live" style="--i:3" x="668" y="136" width="132" height="76" rx="5"></rect>
+          <text class="s-num" x="684" y="160">04</text>
+          <text class="s-name" x="684" y="182">Propose</text>
+          <text class="s-tech" x="684" y="200">1 call / file</text>
+
+          <rect class="box live" style="--i:4" x="884" y="136" width="132" height="76" rx="5"></rect>
+          <text class="s-num" x="900" y="160">05</text>
+          <text class="s-name" x="900" y="182">Verify</text>
+          <text class="s-tech" x="900" y="200">gate &middot; SHA-1</text>
+
+          <rect class="box live" style="--i:5" x="1100" y="136" width="132" height="76" rx="5"></rect>
+          <text class="s-num" x="1116" y="160">06</text>
+          <text class="s-name" x="1116" y="182">Summarize</text>
+          <text class="s-tech" x="1116" y="200">1 call / PR</text>
+
+          <rect class="box live" style="--i:6" x="1316" y="136" width="132" height="76" rx="5"></rect>
+          <text class="s-num" x="1332" y="160">07</text>
+          <text class="s-name" x="1332" y="182">Publish</text>
+          <text class="s-tech" x="1332" y="200">REST API</text>
+        </g>
+
+        <!-- connectors, payload labels, travelling packets -->
+        <g color="var(--line)">
+          <line class="wire" x1="152" y1="174" x2="234" y2="174" marker-end="url(#tip)"></line>
+          <line class="wire" x1="368" y1="174" x2="450" y2="174" marker-end="url(#tip)"></line>
+          <line class="wire" x1="584" y1="174" x2="666" y2="174" marker-end="url(#tip)"></line>
+          <line class="wire" x1="800" y1="174" x2="882" y2="174" marker-end="url(#tip)"></line>
+          <line class="wire" x1="1016" y1="174" x2="1098" y2="174" marker-end="url(#tip)"></line>
+          <line class="wire" x1="1232" y1="174" x2="1314" y2="174" marker-end="url(#tip)"></line>
+        </g>
+        <g text-anchor="middle">
+          <text class="hand" x="194" y="234">base +</text>
+          <text class="hand" x="194" y="246">head sha</text>
+          <text class="hand" x="410" y="234">diff +</text>
+          <text class="hand" x="410" y="246">file versions</text>
+          <text class="hand" x="626" y="234">labeled</text>
+          <text class="hand" x="626" y="246">code blocks</text>
+          <text class="hand" x="842" y="234">candidate</text>
+          <text class="hand" x="842" y="246">findings</text>
+          <text class="hand" x="1058" y="234">verified,</text>
+          <text class="hand" x="1058" y="246">ranked</text>
+          <text class="hand" x="1273" y="234">findings +</text>
+          <text class="hand" x="1273" y="246">one summary</text>
+        </g>
+        <g>
+          <circle class="packet" style="--i:0" cx="160" cy="174" r="5"></circle>
+          <circle class="packet" style="--i:1" cx="376" cy="174" r="5"></circle>
+          <circle class="packet" style="--i:2" cx="592" cy="174" r="5"></circle>
+          <circle class="packet" style="--i:3" cx="808" cy="174" r="5"></circle>
+          <circle class="packet" style="--i:4" cx="1024" cy="174" r="5"></circle>
+          <circle class="packet" style="--i:5" cx="1240" cy="174" r="5"></circle>
+        </g>
+
+        <!-- rejections out of the gate -->
+        <g color="var(--flag)">
+          <path class="drop" d="M 950 212 L 950 288" marker-end="url(#tip)"></path>
+        </g>
+        <text class="drop-text" x="950" y="310" text-anchor="middle">dropped &middot; no quote &middot; duplicate &middot; low confidence</text>
+        <text class="drop-text" x="950" y="326" text-anchor="middle">each rejection keeps its reason</text>
+      </svg>
+    </div>
+    <figcaption>Each stage hands the next exactly one thing, so a stage can be replaced without touching its neighbours. The three stages that call a model each do it as a round trip out and back &mdash; everything else is plain parsing, searching and text matching. The context bundle is assembled once per pull request and reused on every stage-4 call.</figcaption>
+  </figure>
+
+  <div class="prose">
+    <h2 id="stages">The seven stages</h2>
+
+    <h3><span class="num">01</span> Trigger</h3>
+    <p>A pull request event starts the run. The CI job checks out the repository with full history and calls one command, <code>groundtruth review</code>.</p>
+    <p class="why"><b>Why CI:</b> the platform's own runner is already the queue and the compute. Nothing has to be hosted, so installing the tool is one workflow file and one secret.</p>
+
+    <h3><span class="num">02</span> Collect the change</h3>
+    <p>Git provides the diff and the full text of each changed file at both the base and the head commit.</p>
+    <p class="why"><b>Why both versions:</b> the diff alone shows changed lines without the code around them, and comparing the two versions is what reveals that a function's signature changed.</p>
+
+    <h3><span class="num">03</span> Build context</h3>
+    <p>This stage decides what the model is allowed to see. It makes no AI calls.</p>
+    <ul>
+      <li><b>Tree-sitter</b> parses each changed file into an AST, so a changed line becomes the whole function that contains it.</li>
+      <li><b>ripgrep</b> searches the repository for callers of each changed function, with a plain Python walk as a fallback when ripgrep is missing.</li>
+      <li>If a function's signature changed, its callers become must-include and can never be dropped.</li>
+      <li>Everything is packed into a token budget. Optional blocks shrink to their signature line before being dropped, and every cut is reported.</li>
+    </ul>
+    <p class="why"><b>Why an AST instead of a vector database:</b> parsing is exact and repeatable. Similarity search returns code that merely looks related, and a wrong snippet produces a confident, wrong finding. This way, context is always real code that provably surrounds the change.</p>
+
+    <h3><span class="num">04</span> Propose findings</h3>
+    <p>The context bundle from stage 3 is built once for the whole pull request. The reviewer then makes one call per changed file: each call carries that same bundle as reference, plus one file's diff as the code actually under review. Each finding must quote the exact line it is about. LiteLLM is used as a library, so the model is one line of config &mdash; Claude, OpenAI, Azure, Bedrock or a local Ollama model &mdash; and the key comes from an environment variable.</p>
+    <p class="why"><b>Why the target is one file, not the whole diff:</b> a single pass over a large diff reports the few most obvious issues and stops looking. The reference material is not what causes that, so the bundle stays whole; only the code under review is kept small, which is why the fifteenth file gets the same attention as the first.</p>
+    <p class="why"><b>Why the quote:</b> it is the evidence the next stage checks. A model can claim anything, but it cannot copy a line that was never written.</p>
+
+    <h3><span class="num">05</span> Verify: the quality gate</h3>
+    <p>Nothing reaches the pull request without clearing five checks, ordered cheapest first so paid calls are only spent on candidates that could survive.</p>
+  </div>
+
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>Check</th><th>How it works</th><th>Why</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Quote exists</td>
+          <td>Whitespace-insensitive text match against the diff and context</td>
+          <td>Removes invented code before anything else runs</td>
+        </tr>
+        <tr>
+          <td>Line is in the diff</td>
+          <td>The reported line must fall inside a changed hunk of that file</td>
+          <td>A quote can be real while the line reported with it is wrong, and no comment can be placed on a line the diff does not contain</td>
+        </tr>
+        <tr>
+          <td>Not a duplicate</td>
+          <td>SHA-1 fingerprint of file, surrounding code and category &mdash; never the model's wording</td>
+          <td>A reworded finding on untouched code keeps the same ID, so re-runs don't repeat comments</td>
+        </tr>
+        <tr>
+          <td>Skeptic pass</td>
+          <td>A second LLM call judges whether the finding is real and worth fixing; its confidence is multiplied with the first model's</td>
+          <td>Averaging lets a confident wrong answer outvote a doubtful right one. Multiplying makes doubt contagious</td>
+        </tr>
+        <tr>
+          <td>Rank and cap</td>
+          <td>Sorted by severity weight &times; confidence, trimmed to a maximum</td>
+          <td>Keeps reviews short, so the comments people do see are the ones worth reading</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="prose">
+    <p>Every rejected finding records which check dropped it and why, which is what makes review quality measurable later.</p>
+
+    <h3><span class="num">06</span> Summarize</h3>
+    <p>A cheap call turns the verified findings into the text of one summary comment. Grouping findings that share a cause &mdash; three instances of the same missing null check &mdash; reads faster than three bullets that look unrelated.</p>
+    <p class="why"><b>The guard:</b> this is the only text on the pull request the gate never checked itself, so the summarizer may only group and rephrase findings that already passed &mdash; never add a claim. A summary naming a file or line outside the verified set is discarded, and any error falls back to a plain formatted list. A bad call costs wording, never the review.</p>
+    <p>The call belongs to the core, not to a platform adapter, and its text travels as a <code>summary</code> field in the same JSON. Every adapter gets it without making a model call of its own.</p>
+
+    <h3><span class="num">07</span> Publish</h3>
+    <p>One summary comment is created or updated, plus one comment on the code for each finding.</p>
+    <p class="why"><b>Why a separate adapter:</b> it depends only on the JSON the command prints, not on the tool's internals. Supporting GitLab or Bitbucket is then glue code for a different API, not a redesign.</p>
+
+    <h2 id="example">A worked example</h2>
+    <p>One pull request, traced through every stage. <code>calculate_discount</code> gains a required <code>promos</code> argument. <code>checkout.py</code> is not part of the pull request and still calls it with one argument &mdash; the break a diff-only review cannot see.</p>
+
+    <p class="step">Stages 1&ndash;2 &middot; the change that arrives</p>
+  </div>
+
+  <pre><code>diff --git a/invoice.py b/invoice.py
+@@ -1,6 +1,7 @@
+<span class="del">-def calculate_discount(price):
+-    return price * 0.9</span>
+<span class="add">+def calculate_discount(price, promos):
++    rate = 1 - sum(p.rate for p in promos)
++    return price * rate</span>
+
+
+<span class="del">-def invoice_total(price):
+-    return calculate_discount(price)</span>
+<span class="add">+def invoice_total(price, promos):
++    return calculate_discount(price, promos)</span></code></pre>
+
+  <div class="prose">
+    <p class="note">Parsed into one file, added lines 1, 2, 3, 6 and 7, and a single hunk spanning lines 1&ndash;7. Those spans are what stage 5 later checks a reported line against.</p>
+
+    <p class="step">Stage 3 &middot; the context assembled</p>
+  </div>
+
+  <pre><code>invoice.py#L1-3 (changed: signature changed)
+    def calculate_discount(price, promos):
+        rate = 1 - sum(p.rate for p in promos)
+        return price * rate
+
+invoice.py#L6-7 (changed: signature changed)
+    def invoice_total(price, promos):
+        return calculate_discount(price, promos)
+
+checkout.py#L4-5 (caller of calculate_discount, signature changed)
+    def checkout(price):
+        return calculate_discount(price)          &lt;-- still the old call
+
+3 blocks, 68 tokens, nothing cut</code></pre>
+
+  <div class="prose">
+    <p class="note">No model has been called yet. The signature changed between base and head, so every caller of <code>calculate_discount</code> is promoted to must-include &mdash; which is how the untouched <code>checkout.py</code> reaches the reviewer at all.</p>
+
+    <p class="step">Stage 4 &middot; what the model proposes</p>
+  </div>
+
+  <pre><code>{"findings": [
+  {"file": "invoice.py", "line": 1, "category": "correctness", "severity": "high",
+   "confidence": 0.9,
+   "title": "New promos argument is required, but checkout.py still calls calculate_discount(price)",
+   "quoted_code": "def calculate_discount(price, promos):"},
+
+  {"file": "invoice.py", "line": 2, "category": "correctness", "severity": "medium",
+   "confidence": 0.8,
+   "title": "Empty promos list is not handled",
+   "quoted_code": "rate = 1 - sum(p.rate for p in promos or [])"}
+]}</code></pre>
+
+  <div class="prose">
+    <p class="note">Note where the first finding sits: on the changed line in <code>invoice.py</code>, naming <code>checkout.py</code> in its text. A finding must live inside the diff, so a break in an untouched file is reported against the change that caused it.</p>
+
+    <p class="step">Stage 5 &middot; what the gate does with them</p>
+  </div>
+
+  <pre><code>candidate 1  quote found in the diff ....... pass
+             line 1 inside hunk 1-7 ......... pass
+             fingerprint 596cc47b1d8b ....... new
+             skeptic: real, actionable, 0.9 .. 0.9 &times; 0.9 = 0.81
+             &rarr; posted
+
+candidate 2  quote found in the diff ....... FAIL
+             &rarr; dropped at the quote check, no model call spent</code></pre>
+
+  <div class="prose">
+    <p class="note">The second quote looks plausible and appears nowhere in the diff: the real line has no <code>or []</code>. It is rejected before the skeptic pass, so the fabrication costs nothing.</p>
+
+    <p class="step">Stages 6&ndash;7 &middot; what lands on the pull request</p>
+  </div>
+
+  <pre><code>## Groundtruth review
+
+**1 verified finding**, grouped by file.
+
+#### `invoice.py`
+
+| Severity | Line | Finding                                       | Confidence |
+| ---      | ---  | ---                                           | ---        |
+| **HIGH** | 1    | New promos argument is required, but          | 0.81       |
+|          |      | checkout.py still calls calculate_discount()  |            |
+
+&lt;sub&gt;1 candidate finding(s) did not survive verification.
+Reviewed with `anthropic/claude-sonnet-5` &middot; estimated $0.0032.&lt;/sub&gt;</code></pre>
+
+  <div class="prose">
+    <p class="note">With one finding there is nothing to group, so the summary is the plain list &mdash; the same output the fallback produces. Alongside it, one inline comment lands on <code>invoice.py:1</code> carrying the severity, the category, the confidence and the quoted line. Total spend for the review: $0.0032.</p>
+
+    <h2 id="models">Which model does what</h2>
+    <p>Three stages call a model, and they do not need the same one. The model is a config line, so the tier is a deployment choice rather than a code change.</p>
+  </div>
+
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>Stage</th><th>Tier</th><th>Why</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>4. Propose</td>
+          <td>Stronger</td>
+          <td>Reads a whole file's diff against the context bundle. The ceiling on review quality is set here</td>
+        </tr>
+        <tr>
+          <td>5. Verify</td>
+          <td>Cheap</td>
+          <td>One bounded question about one finding and its evidence, on a short prompt</td>
+        </tr>
+        <tr>
+          <td>6. Summarize</td>
+          <td>Cheap</td>
+          <td>Rephrasing text that is already verified, once per pull request</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="prose">
+    <p class="why"><b>Why the reasoning gets the stronger tier:</b> a finding that was never proposed cannot be recovered downstream, while a finding that was proposed still has to get past the gate. Spend where the reasoning happens, not where the checking does.</p>
+    <p>The cheap tier is safe in stage 5 because most of that stage is not a model call at all. The quote match, the location check, the fingerprint and the ranking are ordinary code &mdash; exact, free, and unaffected by which model is configured. Only the skeptic's judgement is a call, and its confidence multiplies, so an unsure verdict pulls a finding below the bar rather than waving it through.</p>
+
+    <h2 id="choices">What it deliberately does not use</h2>
+    <p>Several obvious pieces are missing on purpose. Each was left out for a reason worth knowing before adding it back.</p>
+  </div>
+
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>Not used</th><th>Used instead</th><th>Reason</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Vector database, embeddings, RAG</td>
+          <td>AST parsing plus a caller search</td>
+          <td>Retrieval guesses at relevance; a wrong snippet turns into a confident, wrong finding</td>
+        </tr>
+        <tr>
+          <td>A hosted service or shared API key</td>
+          <td>The user's own key from an environment variable</td>
+          <td>No shared bill, no contract, and a local Ollama model costs nothing</td>
+        </tr>
+        <tr>
+          <td>Server, queue and database for normal use</td>
+          <td>A stateless CI job</td>
+          <td>One person reviewing their own repository needs a key, not a fleet</td>
+        </tr>
+        <tr>
+          <td>Spend governance built into the tool</td>
+          <td>An optional self-hosted LiteLLM proxy, set by one config line</td>
+          <td>Budgets and caps already exist in that open-source proxy; rebuilding them would add no value</td>
+        </tr>
+        <tr>
+          <td>Keys in a config file</td>
+          <td>Environment variables only, with the config file refusing to load anything key-shaped</td>
+          <td>A file that could hold a secret is a file someone eventually commits</td>
+        </tr>
+        <tr>
+          <td>Averaged confidence scores</td>
+          <td>Multiplied scores</td>
+          <td>A false positive costs more trust than a missed bug, so either model's doubt must be able to block a finding</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="prose">
+    <p>One more boundary holds the design together: the context and verification packages never import platform code. They take a diff and a repository path, and return findings. That is what makes &ldquo;any platform, any model&rdquo; true rather than a slogan.</p>
+  </div>
+
+</div>
