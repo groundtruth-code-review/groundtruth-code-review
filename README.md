@@ -28,19 +28,19 @@ else is parsing, searching and text matching.
 
 ```mermaid
 flowchart TD
-    A["1 Trigger<br/><small>CI on a pull request</small>"] --> B["2 Collect<br/><small>diff + file versions</small>"]
-    B --> C["3 Build context<br/><small>Tree-sitter AST + caller search</small>"]
-    C --> D["4 Propose<br/><small>one call per changed file</small>"]
-    D --> E["5 Verify<br/><small>five checks</small>"]
-    E --> F["6 Summarize<br/><small>one call per pull request</small>"]
-    F --> G["7 Publish<br/><small>PR comments</small>"]
+    A["1 Trigger<br/>CI on a pull request"] --> B["2 Collect<br/>diff + file versions"]
+    B --> C["3 Build context<br/>AST parse + caller search"]
+    C --> D["4 Propose<br/>one call per changed file"]
+    D --> E["5 Verify<br/>five checks"]
+    E --> F["6 Summarize<br/>one call per pull request"]
+    F --> G["7 Publish<br/>PR comments"]
 
     M(["Model via LiteLLM<br/>your key, any provider"])
-    D <-->|"diff + context"| M
-    E <-->|"one finding"| M
-    F <-->|"verified set"| M
+    D <-.-> M
+    E <-.-> M
+    F <-.-> M
 
-    E -.-> X["dropped<br/><small>no quote, off-diff line,<br/>duplicate, low confidence</small>"]
+    E -.-> X["dropped<br/>no quote, off-diff line,<br/>duplicate, low confidence"]
 ```
 
 Stage 3 is where the interesting work happens, and it calls no model at all:
