@@ -49,6 +49,10 @@ flowchart TD
     E -.-> X["dropped<br/>no quote, off-diff line,<br/>duplicate, low confidence"]
 ```
 
+The same pipeline, with a worked example traced through every stage and the
+handoffs animated, is at
+**[varunkumar-dev.github.io/groundtruth-review](https://varunkumar-dev.github.io/groundtruth-review/)**.
+
 Stage 3 is where the interesting work happens, and it calls no model at all:
 a changed line becomes the whole function that contains it, that function's
 real callers are found by text search, and a changed signature promotes those
