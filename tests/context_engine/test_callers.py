@@ -1,3 +1,7 @@
+import shutil
+
+import pytest
+
 from groundtruth.context_engine.callers import find_callers
 
 
@@ -67,3 +71,38 @@ def test_no_matches_returns_empty_list(tmp_path):
 def test_short_name_is_rejected_to_avoid_noise(tmp_path):
     _write(tmp_path, "invoice.py", "def x():\n    return 1\n")
     assert find_callers(tmp_path, "x", from_path="invoice.py") == []
+
+
+# --- the two search paths must agree -------------------------------------
+
+def test_rg_filters_exclude_every_directory_the_python_walk_skips():
+    from groundtruth.context_engine.callers import _SKIP_DIRS, rg_filters
+
+    args = rg_filters()
+    for directory in _SKIP_DIRS:
+        assert f"!**/{directory}/**" in args, f"{directory} is skipped by one path only"
+
+
+def test_rg_filters_include_every_searchable_extension_and_cap_size():
+    from groundtruth.context_engine.callers import _MAX_FILE_BYTES, _SEARCHABLE_EXT, rg_filters
+
+    args = rg_filters()
+    for ext in _SEARCHABLE_EXT:
+        assert f"*{ext}" in args
+    assert args[args.index("--max-filesize") + 1] == str(_MAX_FILE_BYTES)
+
+
+@pytest.mark.skipif(shutil.which("rg") is None, reason="ripgrep not installed here")
+def test_the_rg_path_and_the_python_path_return_the_same_hits(tmp_path):
+    # this is the test the container build runs and a bare runner skips:
+    # the image installs ripgrep, so the fast path is exercised there
+    from groundtruth.context_engine.callers import _search_pure_python, _search_with_rg
+
+    (tmp_path / "app.py").write_text("def caller():\n    return helper()\n")
+    (tmp_path / "node_modules").mkdir()
+    (tmp_path / "node_modules" / "pkg.py").write_text("def vendored():\n    return helper()\n")
+    (tmp_path / "notes.txt").write_text("helper() mentioned in prose\n")
+
+    rg_hits = sorted((h.path, h.line) for h in _search_with_rg(tmp_path, "helper"))
+    py_hits = sorted((h.path, h.line) for h in _search_pure_python(tmp_path, "helper"))
+    assert rg_hits == py_hits == [("app.py", 2)]

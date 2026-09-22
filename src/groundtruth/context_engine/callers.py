@@ -3,6 +3,9 @@
 Prefers the real `rg` (ripgrep) binary when it's on PATH — it's dramatically
 faster on large repos. Falls back to a pure-Python directory walk otherwise,
 so the engine works on any machine, not just ones with ripgrep installed.
+Both paths apply the same skip list, extension filter and size cap: a search
+that returns different results depending on which binaries are installed is
+a search nobody can reason about.
 That fallback isn't a compromise bolted on for this rebuild: the original
 design anticipated exactly this ("rg or pure-python") because ripgrep being
 missing was always a real possibility on some worker, not a hypothetical.
@@ -83,10 +86,34 @@ def _rank_key(hit: CallerHit, from_path: str) -> tuple[int, str, int]:
     return (-shared, hit.path, hit.line)
 
 
+def rg_filters() -> list[str]:
+    """The skip list, the extension list and the size cap, expressed as
+    ripgrep arguments.
+
+    Built from the same constants the pure-Python walk uses, because the two
+    paths answering differently is worse than either answer: with ripgrep
+    installed the search used to reach into `node_modules`, `vendor` and
+    `dist`, so a review's context could be spent on third-party code, and a
+    finding could be raised against a file nobody in the repository owns.
+    The behaviour of the search should not depend on which binaries happen
+    to be on a machine.
+    """
+    args: list[str] = []
+    for directory in sorted(_SKIP_DIRS):
+        args += ["--glob", f"!**/{directory}/**"]
+    for ext in sorted(_SEARCHABLE_EXT):
+        args += ["--glob", f"*{ext}"]
+    args += ["--max-filesize", str(_MAX_FILE_BYTES)]
+    return args
+
+
 def _search_with_rg(repo_root: Path, name: str) -> list[CallerHit]:
     pattern = r"\b" + re.escape(name) + r"\s*\("
     proc = subprocess.run(
-        ["rg", "--line-number", "--no-heading", "--max-count", "40", pattern, str(repo_root)],
+        [
+            "rg", "--line-number", "--no-heading", "--max-count", "40",
+            *rg_filters(), pattern, str(repo_root),
+        ],
         capture_output=True,
         text=True,
         timeout=30,
