@@ -101,7 +101,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - uses: YOUR_USERNAME/groundtruth-review/adapters/github@main
+      - uses: varun3536/groundtruth-review/adapters/github@main
         with: { model: anthropic/claude-sonnet-5 }
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -128,7 +128,7 @@ than as a SHA. Findings land as inline-anchored comments.
 ## Quickstart (CLI + library)
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/groundtruth-review
+git clone https://github.com/varun3536/groundtruth-review
 cd groundtruth-review
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
