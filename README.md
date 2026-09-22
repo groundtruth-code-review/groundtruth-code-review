@@ -27,20 +27,20 @@ call a model, and each of those is a round trip out and back — everything
 else is parsing, searching and text matching.
 
 ```mermaid
-flowchart LR
-    A["1 Trigger<br/>CI on a pull request"] --> B["2 Collect<br/>diff + file versions"]
-    B --> C["3 Build context<br/>Tree-sitter AST + caller search"]
-    C --> D["4 Propose<br/>one call per changed file"]
-    D --> E["5 Verify<br/>five checks"]
-    E --> F["6 Summarize<br/>one call per pull request"]
-    F --> G["7 Publish<br/>PR comments"]
+flowchart TD
+    A["1 Trigger<br/><small>CI on a pull request</small>"] --> B["2 Collect<br/><small>diff + file versions</small>"]
+    B --> C["3 Build context<br/><small>Tree-sitter AST + caller search</small>"]
+    C --> D["4 Propose<br/><small>one call per changed file</small>"]
+    D --> E["5 Verify<br/><small>five checks</small>"]
+    E --> F["6 Summarize<br/><small>one call per pull request</small>"]
+    F --> G["7 Publish<br/><small>PR comments</small>"]
 
-    M(["Model via LiteLLM &mdash; your key, any provider"])
-    D <-->|"file diff + context / candidate findings"| M
-    E <-->|"finding + evidence / verdict"| M
-    F <-->|"verified findings / grouped summary"| M
+    M(["Model via LiteLLM<br/>your key, any provider"])
+    D <-->|"diff + context"| M
+    E <-->|"one finding"| M
+    F <-->|"verified set"| M
 
-    E -.->|"no quote, off-diff line, duplicate, low confidence"| X["dropped, with the reason recorded"]
+    E -.-> X["dropped<br/><small>no quote, off-diff line,<br/>duplicate, low confidence</small>"]
 ```
 
 Stage 3 is where the interesting work happens, and it calls no model at all:
