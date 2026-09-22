@@ -36,7 +36,7 @@ runs:
       # action's own identity, not the caller's). TODO: switch to
       # `pip install groundtruth-review` once it's published to PyPI.
       run: |
-        pip install "git+https://github.com/${{ github.action_repository }}.git@${{ github.action_ref }}#subdirectory=code"
+        pip install "git+https://github.com/${{ github.action_repository }}.git@${{ github.action_ref }}"
 
     - name: Review and publish
       shell: bash

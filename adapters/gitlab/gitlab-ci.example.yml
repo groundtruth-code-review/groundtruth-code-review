@@ -19,7 +19,7 @@ groundtruth-review:
     GIT_DEPTH: 0
     GROUNDTRUTH_MODEL: anthropic/claude-sonnet-5
   before_script:
-    - pip install --quiet "git+https://github.com/YOUR_USERNAME/groundtruth-review.git#subdirectory=code"
+    - pip install --quiet "git+https://github.com/YOUR_USERNAME/groundtruth-review.git"
     - git clone --depth 1 https://github.com/YOUR_USERNAME/groundtruth-review.git /tmp/groundtruth
   script:
-    - python3 /tmp/groundtruth/code/adapters/gitlab/publish.py
+    - python3 /tmp/groundtruth/adapters/gitlab/publish.py

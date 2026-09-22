@@ -682,7 +682,7 @@ candidate 2  quote found in the diff ....... FAIL
 Reviewed with `anthropic/claude-sonnet-5` &middot; estimated $0.0032.&lt;/sub&gt;</code></pre>
 
   <div class="prose">
-    <p class="note">With one finding there is nothing to group, so the summary is the plain list &mdash; the same output the fallback produces. Alongside it, one inline comment lands on <code>invoice.py:1</code> carrying the severity, the category, the confidence and the quoted line. Total spend for the review: $0.0032.</p>
+    <p class="note">The summary call is handed the one verified finding and returns a sentence for the top of the comment &mdash; here, <i>&ldquo;A required argument was added to calculate_discount without updating its caller.&rdquo;</i> It names only <code>invoice.py</code>, a file in the verified set, so it passes the grounding check; a sentence naming anything else would be discarded and the plain list posted instead. Alongside the comment, one inline comment lands on <code>invoice.py:1</code> with the severity, category, confidence and quoted line.</p>
 
     <h2 id="models">Which model does what</h2>
     <p>Three stages call a model, and they do not need the same one. The model is a config line, so the tier is a deployment choice rather than a code change.</p>

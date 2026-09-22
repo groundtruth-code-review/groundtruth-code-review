@@ -20,7 +20,7 @@ pipelines:
             depth: full
           script:
             - git fetch origin "$BITBUCKET_PR_DESTINATION_BRANCH"
-            - pip install --quiet "git+https://github.com/YOUR_USERNAME/groundtruth-review.git#subdirectory=code"
+            - pip install --quiet "git+https://github.com/YOUR_USERNAME/groundtruth-review.git"
             - git clone --depth 1 https://github.com/YOUR_USERNAME/groundtruth-review.git /tmp/groundtruth
             - export GROUNDTRUTH_MODEL=anthropic/claude-sonnet-5
-            - python3 /tmp/groundtruth/code/adapters/bitbucket_cloud/publish.py
+            - python3 /tmp/groundtruth/adapters/bitbucket_cloud/publish.py
