@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Language support &middot; Groundtruth</title>
+<meta name="description" content="Which languages Groundtruth parses, which ones get cross-file caller context, and what degrades when yours is not covered.">
+<meta name="color-scheme" content="light dark">
+<meta property="og:title" content="Language support &middot; Groundtruth">
+<meta property="og:description" content="Which languages Groundtruth parses, which ones get cross-file caller context, and what degrades when yours is not covered.">
+<meta property="og:type" content="article">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='7' cy='7' r='4.6' fill='none' stroke='%230c6b64' stroke-width='1.8'/%3E%3Cpath d='M10.4 10.4 L14 14' stroke='%230c6b64' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+
+<nav class="topbar">
+  <div class="topbar-inner">
+    <span class="brand"><a href="../index.html" style="color:inherit;text-decoration:none">Groundtruth</a></span>
+    <span class="topnav">
+      <a href="../index.html#why">Why</a>
+      <a href="../index.html#stages">How it works</a>
+      <a href="getting-started.html">Docs</a>
+      <a href="https://github.com/groundtruth-code-review/groundtruth-code-review">GitHub</a>
+    </span>
+  </div>
+</nav>
+
+<div class="wrap">
+  <div class="doc-layout">
+    <aside class="sidebar">
+      <h5>Guide</h5>
+      <ul>
+        <li><a href="getting-started.html">Getting started</a></li>
+        <li><a href="configuration.html">Configuration</a></li>
+        <li><a href="integrations.html">Integrations</a></li>
+        <li><a href="what-gets-sent.html">What gets sent</a></li>
+        <li><a href="languages.html" class="current">Language support</a></li>
+        <li><a href="troubleshooting.html">Troubleshooting</a></li>
+        <li><a href="faq.html">FAQ</a></li>
+      </ul>
+    </aside>
+
+    <main class="doc-body prose">
+
+      <h1>Language support</h1>
+      <p class="doc-lede">Two different mechanisms build the context, and they do not cover the same set of languages. The difference matters, so it is spelled out here rather than discovered.</p>
+
+      <h2>The two mechanisms</h2>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Mechanism</th><th>Coverage</th><th>What it gives you</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>Chunking (Tree-sitter)</td>
+              <td>300+ grammars, detected from the file path</td>
+              <td>A changed line expands to the whole function containing it</td>
+            </tr>
+            <tr>
+              <td>Caller search</td>
+              <td>18 file extensions, listed below</td>
+              <td>The functions elsewhere in the repo that call a changed function</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>Extensions the caller search covers</h2>
+      <div class="code-box">
+        <pre><code>.py   .js   .jsx  .ts   .tsx  .go
+.java .rb   .rs   .c    .h    .cpp
+.hpp  .cs   .php  .kt   .swift .scala</code></pre>
+      </div>
+
+      <div class="callout"><b>If your language is not in that list</b>, the reviewer still parses your changed functions and reviews them &mdash; but it will not find callers in other files, which means the cross-file contract break is exactly the class of bug it stops catching for you. That is the headline capability, so know it up front.</div>
+
+      <h2>What degrades, and how</h2>
+      <ul>
+        <li><b>No grammar for the language:</b> chunking returns nothing for that file and the reviewer sees the raw diff without enclosing functions. The review still runs.</li>
+        <li><b>A file that fails to parse:</b> same &mdash; that one file degrades, the rest of the review is unaffected. Nothing crashes over one bad file.</li>
+        <li><b>Extension outside the caller list:</b> no caller context, so no signature-change promotion for that language.</li>
+        <li><b>ripgrep missing:</b> no degradation at all. A pure-Python walk applies the same skip list, the same extension filter and the same size cap, and returns the same hits.</li>
+      </ul>
+
+      <h2>Directories never searched</h2>
+      <p>Regardless of language, the caller search skips <code>.git</code>, <code>node_modules</code>, <code>vendor</code>, <code>.venv</code>, <code>venv</code>, <code>__pycache__</code>, <code>dist</code>, <code>build</code>, <code>.mypy_cache</code> and <code>.pytest_cache</code>, and ignores files over 2&nbsp;MB. Third-party code should not consume a review's context budget, and a finding raised against vendored code is a finding nobody in your repository can act on.</p>
+
+      <h2>Adding a language</h2>
+      <p>The caller list is one set in <code>src/groundtruth/context_engine/callers.py</code>. Adding an extension there is a one-line change, and both search paths read the same constant, so they cannot fall out of step. A pull request adding your language is welcome; a case in <code>cases/</code> exercising it is even more welcome.</p>
+      <div class="doc-nextprev">
+        <span>&larr; <a href="what-gets-sent.html">What gets sent</a></span>
+        <span><a href="troubleshooting.html">Troubleshooting</a> &rarr;</span>
+      </div>
+    </main>
+  </div>
+</div>
+
+<footer style="max-width:1140px;margin:0 auto;padding:40px 20px 0;border-top:1px solid var(--hair);font-size:15px;color:var(--muted)">
+  <p style="max-width:68ch">
+    Source and issues:
+    <a href="https://github.com/groundtruth-code-review/groundtruth-code-review" style="color:var(--accent)">github.com/groundtruth-code-review/groundtruth-code-review</a>.
+    MIT licensed. This guide is generated from <code>docs/build_guide.py</code>.
+  </p>
+</footer>
+
+</body>
+</html>

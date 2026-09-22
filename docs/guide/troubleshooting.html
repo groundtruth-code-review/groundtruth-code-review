@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Troubleshooting &middot; Groundtruth</title>
+<meta name="description" content="Why a review posted nothing, why a comment failed to place, and every other failure mode with its actual cause.">
+<meta name="color-scheme" content="light dark">
+<meta property="og:title" content="Troubleshooting &middot; Groundtruth">
+<meta property="og:description" content="Why a review posted nothing, why a comment failed to place, and every other failure mode with its actual cause.">
+<meta property="og:type" content="article">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='7' cy='7' r='4.6' fill='none' stroke='%230c6b64' stroke-width='1.8'/%3E%3Cpath d='M10.4 10.4 L14 14' stroke='%230c6b64' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+
+<nav class="topbar">
+  <div class="topbar-inner">
+    <span class="brand"><a href="../index.html" style="color:inherit;text-decoration:none">Groundtruth</a></span>
+    <span class="topnav">
+      <a href="../index.html#why">Why</a>
+      <a href="../index.html#stages">How it works</a>
+      <a href="getting-started.html">Docs</a>
+      <a href="https://github.com/groundtruth-code-review/groundtruth-code-review">GitHub</a>
+    </span>
+  </div>
+</nav>
+
+<div class="wrap">
+  <div class="doc-layout">
+    <aside class="sidebar">
+      <h5>Guide</h5>
+      <ul>
+        <li><a href="getting-started.html">Getting started</a></li>
+        <li><a href="configuration.html">Configuration</a></li>
+        <li><a href="integrations.html">Integrations</a></li>
+        <li><a href="what-gets-sent.html">What gets sent</a></li>
+        <li><a href="languages.html">Language support</a></li>
+        <li><a href="troubleshooting.html" class="current">Troubleshooting</a></li>
+        <li><a href="faq.html">FAQ</a></li>
+      </ul>
+    </aside>
+
+    <main class="doc-body prose">
+
+      <h1>Troubleshooting</h1>
+      <p class="doc-lede">Each of these is a real message from the code, with what actually causes it.</p>
+
+      <h2>&ldquo;No findings survived the quality gate&rdquo;</h2>
+      <p>Often correct &mdash; a clean diff should produce silence. To tell a clean diff from a misconfiguration, read the rest of that line:</p>
+      <div class="code-box">
+        <pre><code>No findings survived the quality gate &mdash; 4 dropped (3 low confidence, 1 hallucination).</code></pre>
+      </div>
+      <div class="tablewrap">
+        <table class="compact">
+          <thead><tr><th>Stage named</th><th>What happened</th><th>What to do</th></tr></thead>
+          <tbody>
+            <tr><td>(no drops at all)</td><td>The reviewer proposed nothing. Not a gate problem.</td><td>Check the context was assembled: re-run with <code>--dry-run --format text</code>. If the changed functions are missing, see <a href="languages.html">language support</a>.</td></tr>
+            <tr><td>low confidence</td><td>Proposed, then scored below <code>min_confidence</code> once the skeptic's confidence was multiplied in.</td><td>Lower <code>min_confidence</code> toward 0.6 if you want more through.</td></tr>
+            <tr><td>hallucination</td><td>The finding quoted code that is not in the diff or the context. It was dropped before any paid call.</td><td>Nothing &mdash; this is the gate doing its job. Frequent hits suggest a weaker model on stage 4.</td></tr>
+            <tr><td>bad location</td><td>The quote was real, the line number was not inside a changed hunk.</td><td>Nothing. The comment could not have been placed anyway.</td></tr>
+            <tr><td>dedupe</td><td>Already posted on this pull request in an earlier run.</td><td>Nothing. This is what stops repeat comments on every push.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>&ldquo;no changes to review&rdquo;</h2>
+      <p>The diff came back empty. Either the base ref is wrong, or the branch really has no changes against it. On CI, the usual cause is a shallow clone: the job has no base commit, so the diff is empty rather than an error.</p>
+
+      <h2>&ldquo;git diff ... failed&rdquo;</h2>
+      <p>A <code>GitError</code> carrying git's own message. Almost always a shallow clone. Set <code>fetch-depth: 0</code> on GitHub, <code>GIT_DEPTH: 0</code> on GitLab, or <code>clone: depth: full</code> on Bitbucket.</p>
+
+      <h2>&ldquo;detected dubious ownership&rdquo;</h2>
+      <p>Git refusing to operate on a checkout owned by a different user, which happens when a container runs as a non-root user against a mounted workspace. The published image already marks mounted paths as safe; if you built your own, add <code>git config --system --add safe.directory '*'</code> to it.</p>
+
+      <h2>&ldquo;looks like it contains a live API key&rdquo;</h2>
+      <p>A <code>ConfigError</code>, naming the field. Something key-shaped is in <code>.groundtruth.yml</code>. Move it to an environment variable &mdash; that check is what makes the config file safe to commit, so it fails loudly rather than skipping quietly.</p>
+
+      <h2>&ldquo;estimated cost ... exceeds max_cost_per_run&rdquo;</h2>
+      <p>The run stopped before spending past your ceiling. The message names which phase it stopped at, because the ceiling is re-checked before the verification pass and again before the summary &mdash; the number of those calls is not knowable until the review returns. Raise the ceiling, shrink the diff, or inspect with <code>--dry-run</code>.</p>
+
+      <h2>A finding posted, but no inline comment appeared</h2>
+      <p>The adapter logs a warning and continues. Usually a force-push race: the head commit moved between the review and the post, so the platform no longer considers that line part of the diff. The summary comment still lists the finding. Re-running on the new head resolves it.</p>
+
+      <h2>GitLab runs clean and posts nothing</h2>
+      <p>Almost always the token. <code>CI_JOB_TOKEN</code> cannot post notes on a merge request. Use a project access token with the <code>api</code> scope as <code>GROUNDTRUTH_GITLAB_TOKEN</code>.</p>
+
+      <h2>The same comment appeared twice</h2>
+      <p>The review's memory lives in a hidden marker inside its own summary comment. If that comment is deleted, the memory goes with it and the next run has no way to know what it already said. Edit the summary comment freely &mdash; just do not delete it.</p>
+
+      <h2>No caller context, ever</h2>
+      <p>Check your file extension against the <a href="languages.html">18 the caller search covers</a>. Outside that list you get enclosing functions but no cross-file callers.</p>
+
+      <h2>It costs more than expected on big pull requests</h2>
+      <p>Stage 4 makes one call per changed file, so cost scales with files touched, not with repository size. A file whose diff exceeds <code>max_diff_tokens_per_call</code> is split into hunk groups, adding calls. Set <code>max_cost_per_run</code> to make that a hard stop rather than a surprise, and split the tiers so only stage 4 uses the expensive model.</p>
+      <div class="doc-nextprev">
+        <span>&larr; <a href="languages.html">Language support</a></span>
+        <span><a href="faq.html">FAQ</a> &rarr;</span>
+      </div>
+    </main>
+  </div>
+</div>
+
+<footer style="max-width:1140px;margin:0 auto;padding:40px 20px 0;border-top:1px solid var(--hair);font-size:15px;color:var(--muted)">
+  <p style="max-width:68ch">
+    Source and issues:
+    <a href="https://github.com/groundtruth-code-review/groundtruth-code-review" style="color:var(--accent)">github.com/groundtruth-code-review/groundtruth-code-review</a>.
+    MIT licensed. This guide is generated from <code>docs/build_guide.py</code>.
+  </p>
+</footer>
+
+</body>
+</html>

@@ -47,3 +47,9 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+# The guide generator holds pages of prose HTML. Hard-wrapping sentences at
+# the column limit would make that file harder to edit and the rendered
+# output no different, so line length is the one rule it is excused from.
+"docs/build_guide.py" = ["E501"]

@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Getting started &middot; Groundtruth</title>
+<meta name="description" content="How to install Groundtruth on GitHub, GitLab, Bitbucket Cloud or any container CI, and run your first review.">
+<meta name="color-scheme" content="light dark">
+<meta property="og:title" content="Getting started &middot; Groundtruth">
+<meta property="og:description" content="How to install Groundtruth on GitHub, GitLab, Bitbucket Cloud or any container CI, and run your first review.">
+<meta property="og:type" content="article">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='7' cy='7' r='4.6' fill='none' stroke='%230c6b64' stroke-width='1.8'/%3E%3Cpath d='M10.4 10.4 L14 14' stroke='%230c6b64' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+
+<nav class="topbar">
+  <div class="topbar-inner">
+    <span class="brand"><a href="../index.html" style="color:inherit;text-decoration:none">Groundtruth</a></span>
+    <span class="topnav">
+      <a href="../index.html#why">Why</a>
+      <a href="../index.html#stages">How it works</a>
+      <a href="getting-started.html">Docs</a>
+      <a href="https://github.com/groundtruth-code-review/groundtruth-code-review">GitHub</a>
+    </span>
+  </div>
+</nav>
+
+<div class="wrap">
+  <div class="doc-layout">
+    <aside class="sidebar">
+      <h5>Guide</h5>
+      <ul>
+        <li><a href="getting-started.html" class="current">Getting started</a></li>
+        <li><a href="configuration.html">Configuration</a></li>
+        <li><a href="integrations.html">Integrations</a></li>
+        <li><a href="what-gets-sent.html">What gets sent</a></li>
+        <li><a href="languages.html">Language support</a></li>
+        <li><a href="troubleshooting.html">Troubleshooting</a></li>
+        <li><a href="faq.html">FAQ</a></li>
+      </ul>
+    </aside>
+
+    <main class="doc-body prose">
+
+      <h1>Getting started</h1>
+      <p class="doc-lede">A review is one command that reads a diff and exits. There is no server to run, no database to provision and no webhook to register &mdash; so installing it means adding a job to CI you already have.</p>
+
+      <h2>What you need</h2>
+      <ul>
+        <li><b>Python 3.10 or newer</b>, if you are running the CLI directly. The GitHub Action and the container image bring their own.</li>
+        <li><b>A full clone.</b> The review diffs against the base branch, which a shallow clone does not contain. Every integration page says how to turn shallow clones off.</li>
+        <li><b>An API key for one provider</b> &mdash; Anthropic, OpenAI, Azure, Bedrock &mdash; or a local Ollama model, which needs no key and costs nothing.</li>
+        <li><b>ripgrep</b> is optional. It makes the caller search much faster; without it a pure-Python walk does the same work with the same results.</li>
+      </ul>
+
+      <h2>Try it first without a key</h2>
+      <p>Before wiring anything into CI, see what the pipeline assembles. <code>--dry-run</code> stops before the first model call, so it needs no key and costs nothing:</p>
+      <div class="code-box">
+        <pre><code>pip install "git+https://github.com/groundtruth-code-review/groundtruth-code-review.git"
+
+groundtruth review \
+  --repo /path/to/your/repo \
+  --base main \
+  --head HEAD \
+  --dry-run --format text</code></pre>
+      </div>
+      <p>You get the cost estimate for the review pass and the list of context that would have been sent. If that looks wrong &mdash; wrong files, missing callers &mdash; fix it here, before spending anything.</p>
+
+      <h2>Add it to GitHub</h2>
+      <p>One workflow file and one repository secret:</p>
+      <div class="code-box">
+        <pre><code># .github/workflows/groundtruth.yml
+on: pull_request
+permissions:
+  pull-requests: write
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: groundtruth-code-review/groundtruth-code-review/adapters/github@main
+        with: { model: anthropic/claude-sonnet-5 }
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}</code></pre>
+      </div>
+      <p>Add <code>ANTHROPIC_API_KEY</code> under <b>Settings &rarr; Secrets and variables &rarr; Actions</b>, and that is the whole install. <a href="integrations.html">GitLab, Bitbucket Cloud and Kubernetes</a> take about the same.</p>
+
+      <div class="callout ok"><b>Two settings people miss.</b> <code>fetch-depth: 0</code> gives the job the history it needs to diff against the base ref. <code>pull-requests: write</code> lets it post; without it the review runs and then fails at the last step.</div>
+
+      <h2>What happens on the pull request</h2>
+      <p>Two things, and only ever these two:</p>
+      <ul>
+        <li><b>One summary comment</b>, created on the first run and edited in place on every push after. It never stacks up.</li>
+        <li><b>One inline comment per finding</b>, on the line the finding quotes, carrying the severity, the category, the confidence and the quoted line.</li>
+      </ul>
+      <p>If nothing clears the quality gate, you get the summary comment saying so and no inline comments at all. That is the normal, intended outcome on a clean diff.</p>
+
+      <h2>Next</h2>
+      <ul>
+        <li><a href="configuration.html">Configuration</a> &mdash; every setting, and how to make it quieter or louder.</li>
+        <li><a href="what-gets-sent.html">What gets sent to the model</a> &mdash; the answer your security review will ask for.</li>
+        <li><a href="languages.html">Language support</a> &mdash; what works fully, and what degrades.</li>
+      </ul>
+      <div class="doc-nextprev">
+        <span></span>
+        <span><a href="configuration.html">Configuration</a> &rarr;</span>
+      </div>
+    </main>
+  </div>
+</div>
+
+<footer style="max-width:1140px;margin:0 auto;padding:40px 20px 0;border-top:1px solid var(--hair);font-size:15px;color:var(--muted)">
+  <p style="max-width:68ch">
+    Source and issues:
+    <a href="https://github.com/groundtruth-code-review/groundtruth-code-review" style="color:var(--accent)">github.com/groundtruth-code-review/groundtruth-code-review</a>.
+    MIT licensed. This guide is generated from <code>docs/build_guide.py</code>.
+  </p>
+</footer>
+
+</body>
+</html>

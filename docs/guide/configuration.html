@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Configuration &middot; Groundtruth</title>
+<meta name="description" content="Every .groundtruth.yml setting, what it does, and how to tune the reviewer quieter or louder.">
+<meta name="color-scheme" content="light dark">
+<meta property="og:title" content="Configuration &middot; Groundtruth">
+<meta property="og:description" content="Every .groundtruth.yml setting, what it does, and how to tune the reviewer quieter or louder.">
+<meta property="og:type" content="article">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='7' cy='7' r='4.6' fill='none' stroke='%230c6b64' stroke-width='1.8'/%3E%3Cpath d='M10.4 10.4 L14 14' stroke='%230c6b64' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+
+<nav class="topbar">
+  <div class="topbar-inner">
+    <span class="brand"><a href="../index.html" style="color:inherit;text-decoration:none">Groundtruth</a></span>
+    <span class="topnav">
+      <a href="../index.html#why">Why</a>
+      <a href="../index.html#stages">How it works</a>
+      <a href="getting-started.html">Docs</a>
+      <a href="https://github.com/groundtruth-code-review/groundtruth-code-review">GitHub</a>
+    </span>
+  </div>
+</nav>
+
+<div class="wrap">
+  <div class="doc-layout">
+    <aside class="sidebar">
+      <h5>Guide</h5>
+      <ul>
+        <li><a href="getting-started.html">Getting started</a></li>
+        <li><a href="configuration.html" class="current">Configuration</a></li>
+        <li><a href="integrations.html">Integrations</a></li>
+        <li><a href="what-gets-sent.html">What gets sent</a></li>
+        <li><a href="languages.html">Language support</a></li>
+        <li><a href="troubleshooting.html">Troubleshooting</a></li>
+        <li><a href="faq.html">FAQ</a></li>
+      </ul>
+    </aside>
+
+    <main class="doc-body prose">
+
+      <h1>Configuration</h1>
+      <p class="doc-lede">All configuration lives in one <code>.groundtruth.yml</code> at the root of the repository being reviewed. Every setting has a working default, so the file is optional.</p>
+
+      <h2>The file is safe to commit</h2>
+      <p>Not as a convention &mdash; as an enforced rule. <code>config.py</code> refuses to load a config containing anything key-shaped (an <code>sk-</code> prefix, or a long opaque token) and fails loudly, naming the offending field. A file that structurally cannot hold a secret is one nobody has to remember not to commit.</p>
+      <p>Keys come from environment variables only: <code>ANTHROPIC_API_KEY</code>, <code>OPENAI_API_KEY</code> and so on, matching whichever provider your <code>model</code> names.</p>
+
+      <h2>A complete file</h2>
+      <div class="code-box">
+        <pre><code># .groundtruth.yml
+model: anthropic/claude-sonnet-5   # or openai/gpt-4o, ollama/qwen2.5-coder, ...
+max_cost_per_run: 1.00             # whole-run ceiling, in USD
+min_confidence: 0.7                # the bar a finding must clear to post
+max_inline_comments: 10            # cap on comments per review
+context_token_budget: 25000        # tokens of context assembled per review
+max_diff_tokens_per_call: 6000     # a bigger file is reviewed in hunk groups
+summary: true                      # one cheap call to group the findings
+dimensions: [correctness, security, conventions]
+
+# Optional: a cheaper model for the checking stages. Unset means every
+# stage uses `model` above.
+# verify_model: anthropic/claude-haiku-4-5-20251001
+# summary_model: anthropic/claude-haiku-4-5-20251001
+
+# Optional: route every call through your own LiteLLM proxy instead of
+# calling the provider directly.
+# llm_base_url: https://litellm.your-org.internal</code></pre>
+      </div>
+
+      <h2>Every setting</h2>
+      <div class="tablewrap">
+        <table class="compact">
+          <thead><tr><th>Setting</th><th>Default</th><th>What it does</th></tr></thead>
+          <tbody>
+            <tr><td>model</td><td>anthropic/claude-sonnet-5</td><td>Any LiteLLM model string. The provider prefix decides which environment variable is read for the key.</td></tr>
+            <tr><td>verify_model</td><td>same as model</td><td>Model for the skeptic pass. A cheap tier is usually enough here.</td></tr>
+            <tr><td>summary_model</td><td>same as verify_model</td><td>Model for the summary call.</td></tr>
+            <tr><td>llm_base_url</td><td>unset</td><td>Send every call to your own LiteLLM proxy instead of the provider. Unset calls the provider directly.</td></tr>
+            <tr><td>max_cost_per_run</td><td>unset</td><td>Ceiling in USD for the whole run. Re-checked before the verification pass and again before the summary, because the number of those calls is not known until the review returns.</td></tr>
+            <tr><td>min_confidence</td><td>0.7</td><td>Combined confidence (reviewer &times; skeptic) a finding must reach to post.</td></tr>
+            <tr><td>max_inline_comments</td><td>10</td><td>How many findings can post. Survivors are ranked by severity &times; confidence and the rest are cut.</td></tr>
+            <tr><td>context_token_budget</td><td>25000</td><td>Token ceiling for the assembled context. Optional blocks shrink to a signature line before being dropped, and every cut is reported.</td></tr>
+            <tr><td>max_diff_tokens_per_call</td><td>6000</td><td>A file whose diff is bigger is reviewed in hunk groups rather than one oversized call. No hunk is ever skipped.</td></tr>
+            <tr><td>summary</td><td>true</td><td>Whether to make the stage-6 call that groups findings into one sentence at the top of the comment.</td></tr>
+            <tr><td>dimensions</td><td>correctness, security, conventions</td><td>What the review pass is told to look for.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>Making it quieter</h2>
+      <p>If the reviewer is saying too much, in the order worth trying:</p>
+      <ul>
+        <li><b>Raise <code>min_confidence</code></b> to 0.8 or 0.85. This is the strongest lever: confidence is the reviewer's own score multiplied by the skeptic's, so raising the bar cuts anything either model hedged on.</li>
+        <li><b>Lower <code>max_inline_comments</code></b> to 3 or 5. Findings are ranked before the cut, so you keep the most severe and most confident ones.</li>
+        <li><b>Narrow <code>dimensions</code></b> to <code>[correctness, security]</code>. Convention findings are the most subjective and the most numerous.</li>
+      </ul>
+
+      <h2>Making it catch more</h2>
+      <p>If it is too quiet, first find out <i>why</i> &mdash; silence has two very different causes and they have opposite fixes. Run with <code>--format text</code> and read the drop line:</p>
+      <div class="code-box">
+        <pre><code>No findings survived the quality gate &mdash; 4 dropped (3 low confidence, 1 hallucination).</code></pre>
+      </div>
+      <p>Findings dropped at <b>low confidence</b> means the reviewer proposed them and the gate rejected them: lower <code>min_confidence</code>. Findings that were never proposed at all do not appear in that line: that is a context or prompt problem, and lowering the bar will not help. <a href="troubleshooting.html">Troubleshooting</a> walks through both.</p>
+
+      <h2>Splitting the model tiers</h2>
+      <p>Three stages call a model, and they do not need the same one. Stage 4 does the reasoning and sets the ceiling on review quality; stages 5 and 6 answer bounded questions on short prompts. A common setup:</p>
+      <div class="code-box">
+        <pre><code>model: anthropic/claude-sonnet-5
+verify_model: anthropic/claude-haiku-4-5-20251001
+summary_model: anthropic/claude-haiku-4-5-20251001</code></pre>
+      </div>
+      <p>Both tiers default to whatever <code>model</code> is set to, so splitting them is something you opt into rather than something that happens to you on an upgrade.</p>
+
+      <h2>Flags that override the file</h2>
+      <div class="tablewrap">
+        <table class="compact">
+          <thead><tr><th>Flag</th><th>Effect</th></tr></thead>
+          <tbody>
+            <tr><td>--model</td><td>Overrides <code>model</code> for this run.</td></tr>
+            <tr><td>--dry-run</td><td>Estimate and stop. No model call, no key needed.</td></tr>
+            <tr><td>--no-summary</td><td>Skip the stage-6 summary call even if the config enables it.</td></tr>
+            <tr><td>--seen-fingerprint</td><td>A fingerprint already posted on this pull request; repeatable. Adapters pass these back automatically.</td></tr>
+            <tr><td>--format</td><td><code>json</code> (what adapters read) or <code>text</code> (what humans read).</td></tr>
+            <tr><td>--diff</td><td>Read the diff from a file or stdin instead of running git.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="doc-nextprev">
+        <span>&larr; <a href="getting-started.html">Getting started</a></span>
+        <span><a href="integrations.html">Integrations</a> &rarr;</span>
+      </div>
+    </main>
+  </div>
+</div>
+
+<footer style="max-width:1140px;margin:0 auto;padding:40px 20px 0;border-top:1px solid var(--hair);font-size:15px;color:var(--muted)">
+  <p style="max-width:68ch">
+    Source and issues:
+    <a href="https://github.com/groundtruth-code-review/groundtruth-code-review" style="color:var(--accent)">github.com/groundtruth-code-review/groundtruth-code-review</a>.
+    MIT licensed. This guide is generated from <code>docs/build_guide.py</code>.
+  </p>
+</footer>
+
+</body>
+</html>

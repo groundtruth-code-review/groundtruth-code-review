@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>What gets sent &middot; Groundtruth</title>
+<meta name="description" content="Exactly what leaves your repository on each model call, where it goes, and what never leaves at all.">
+<meta name="color-scheme" content="light dark">
+<meta property="og:title" content="What gets sent &middot; Groundtruth">
+<meta property="og:description" content="Exactly what leaves your repository on each model call, where it goes, and what never leaves at all.">
+<meta property="og:type" content="article">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='7' cy='7' r='4.6' fill='none' stroke='%230c6b64' stroke-width='1.8'/%3E%3Cpath d='M10.4 10.4 L14 14' stroke='%230c6b64' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+
+<nav class="topbar">
+  <div class="topbar-inner">
+    <span class="brand"><a href="../index.html" style="color:inherit;text-decoration:none">Groundtruth</a></span>
+    <span class="topnav">
+      <a href="../index.html#why">Why</a>
+      <a href="../index.html#stages">How it works</a>
+      <a href="getting-started.html">Docs</a>
+      <a href="https://github.com/groundtruth-code-review/groundtruth-code-review">GitHub</a>
+    </span>
+  </div>
+</nav>
+
+<div class="wrap">
+  <div class="doc-layout">
+    <aside class="sidebar">
+      <h5>Guide</h5>
+      <ul>
+        <li><a href="getting-started.html">Getting started</a></li>
+        <li><a href="configuration.html">Configuration</a></li>
+        <li><a href="integrations.html">Integrations</a></li>
+        <li><a href="what-gets-sent.html" class="current">What gets sent</a></li>
+        <li><a href="languages.html">Language support</a></li>
+        <li><a href="troubleshooting.html">Troubleshooting</a></li>
+        <li><a href="faq.html">FAQ</a></li>
+      </ul>
+    </aside>
+
+    <main class="doc-body prose">
+
+      <h1>What gets sent to the model</h1>
+      <p class="doc-lede">This is the question a security review asks first, so here it is precisely, per call, from the code that makes them.</p>
+
+      <h2>Three calls, and what each carries</h2>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Call</th><th>What is in the prompt</th><th>How many</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>Stage 4 &mdash; propose</td>
+              <td>One changed file's diff, plus the assembled context bundle: the enclosing functions of changed lines, and the callers of any changed function.</td>
+              <td>One per changed file</td>
+            </tr>
+            <tr>
+              <td>Stage 5 &mdash; verify</td>
+              <td>One finding's title, category and quoted line, plus the evidence pool &mdash; the whole diff and every context block.</td>
+              <td>One per candidate finding that passed the free checks</td>
+            </tr>
+            <tr>
+              <td>Stage 6 &mdash; summarize</td>
+              <td>The verified findings only: severity, file, line, category, title and quoted line for each. No diff, no context.</td>
+              <td>One per pull request</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Stages 1, 2, 3 and 7 make no model call at all. Parsing, the caller search, the quote match, the fingerprinting and the ranking all happen locally.</p>
+
+      <h2>What never leaves</h2>
+      <ul>
+        <li><b>Files outside the diff and outside the context bundle.</b> The rest of the repository is never read into a prompt. A file is only included if it was changed, or if it contains a caller of a changed function.</li>
+        <li><b>Your key, anywhere but the provider.</b> It is read from the environment and used to authenticate the call to the provider you chose. It is never written to a file, never logged, and the config loader refuses to start if it finds something key-shaped in <code>.groundtruth.yml</code>.</li>
+        <li><b>Telemetry.</b> There is none. There is no service operated by this project for anything to be sent to &mdash; no accounts, no hosted component, no phone-home.</li>
+      </ul>
+
+      <div class="callout ok"><b>The cost estimate is local.</b> Token counting and pricing use LiteLLM's local tokenizer and its bundled price table. Estimating a review &mdash; including <code>--dry-run</code> &mdash; makes no network call, which is why a dry run works with no key at all.</div>
+
+      <h2>Where it goes</h2>
+      <ul>
+        <li><b>Straight to your provider</b> by default. Anthropic, OpenAI, Azure, Bedrock &mdash; whichever your <code>model</code> names, called directly from the CI job with your key.</li>
+        <li><b>Through your own proxy</b> if you set <code>llm_base_url</code> to a self-hosted LiteLLM instance. Nothing then talks to a provider except infrastructure you run, which is also where org-wide spend caps and audit logs belong.</li>
+        <li><b>Nowhere at all</b> if you point <code>model</code> at <code>ollama/&lt;model&gt;</code>. Every call goes to a local endpoint, no key exists, and no code leaves the machine running the review.</li>
+      </ul>
+
+      <h2>Retention</h2>
+      <p>Groundtruth stores nothing. It is a process that starts, reads a diff and exits &mdash; no database, no cache, no artifacts beyond the comments it posts. The one piece of state it keeps between runs is the list of fingerprints in the summary comment on your own pull request, and a fingerprint is a SHA-1 of the file path, the surrounding code and the category &mdash; not the code itself.</p>
+      <p>What your provider retains is your provider's policy, and worth reading. If that answer is unacceptable for your codebase, the local-model path exists precisely for that case.</p>
+      <div class="doc-nextprev">
+        <span>&larr; <a href="integrations.html">Integrations</a></span>
+        <span><a href="languages.html">Language support</a> &rarr;</span>
+      </div>
+    </main>
+  </div>
+</div>
+
+<footer style="max-width:1140px;margin:0 auto;padding:40px 20px 0;border-top:1px solid var(--hair);font-size:15px;color:var(--muted)">
+  <p style="max-width:68ch">
+    Source and issues:
+    <a href="https://github.com/groundtruth-code-review/groundtruth-code-review" style="color:var(--accent)">github.com/groundtruth-code-review/groundtruth-code-review</a>.
+    MIT licensed. This guide is generated from <code>docs/build_guide.py</code>.
+  </p>
+</footer>
+
+</body>
+</html>
