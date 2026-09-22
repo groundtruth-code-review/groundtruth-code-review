@@ -3,22 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="How Groundtruth turns a pull request into verified findings: seven stages, deterministic context from an AST parse rather than a vector database, and a gate that drops anything it cannot prove.">
+<title>Groundtruth &mdash; an AI code reviewer that proves what it claims</title>
+<meta name="description" content="An open-source AI code reviewer that only posts a finding when it can prove it. Deterministic context from an AST parse, a five-check gate, bring your own key and model. MIT licensed.">
 <meta name="color-scheme" content="light dark">
-<meta property="og:title" content="Groundtruth Pipeline">
-<meta property="og:description" content="An AI code reviewer that only posts a finding it can prove. Seven stages, three model calls, no vector database.">
+<meta property="og:title" content="Groundtruth: an AI code reviewer that proves what it claims">
+<meta property="og:description" content="No vector database. No hosted service. Nothing posts to a pull request unless it can quote real code and survive a second, skeptical model.">
 <meta property="og:type" content="website">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='7' cy='7' r='4.6' fill='none' stroke='%230c6b64' stroke-width='1.8'/%3E%3Cpath d='M10.4 10.4 L14 14' stroke='%230c6b64' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
   html { -webkit-text-size-adjust: 100%; }
   body { margin: 0; }
   img { max-width: 100%; }
-</style>
-</head>
-<body>
-<title>Groundtruth Pipeline</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
-<style>
   :root {
     --bg: #eef2f1;
     --surface: #ffffff;
@@ -371,28 +367,274 @@
   tbody tr:hover td { background: var(--raised); }
 
   html { scroll-behavior: smooth; }
-</style>
 
+  /* ---- hero ---- */
+  .hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+    gap: 48px;
+    align-items: center;
+    padding-block: 56px 40px;
+  }
+  @media (max-width: 860px) {
+    .hero { grid-template-columns: 1fr; gap: 36px; padding-block: 36px 28px; }
+  }
+  .hero h1 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: clamp(32px, 4.6vw, 50px);
+    line-height: 1.05;
+    letter-spacing: -.028em;
+    margin: 0 0 18px;
+    text-wrap: balance;
+  }
+  .hero .lede { font-size: 18px; line-height: 1.6; color: var(--soft); max-width: 52ch; margin: 0 0 26px; }
+  .cta-row { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 30px; }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 15px;
+    padding: 12px 20px;
+    border-radius: 8px;
+    text-decoration: none;
+    border: 1px solid transparent;
+    cursor: pointer;
+  }
+  .btn-primary { background: var(--accent); color: var(--bg); }
+  .btn-primary:hover { opacity: .92; }
+  :root[data-theme="dark"] .btn-primary, :root:not([data-theme="light"]) .btn-primary { color: #06110f; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn-primary { color: #06110f; } }
+  .btn-secondary { background: var(--surface); color: var(--text); border-color: var(--line); }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .btn svg { width: 16px; height: 16px; flex: none; }
+
+  .stat-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding-bottom: 4px;
+  }
+  .stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 16px;
+    background: var(--raised);
+    border: 1px solid var(--hair);
+    border-radius: 8px;
+    min-width: 118px;
+  }
+  .stat b { font-family: var(--display); font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+  .stat span { font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em; color: var(--muted); text-transform: uppercase; }
+
+  /* ---- mock PR comment ---- */
+  .pr-card {
+    border: 1px solid var(--hair);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+    font-size: 14px;
+  }
+  .pr-card-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--hair);
+    background: var(--raised);
+  }
+  .pr-avatar {
+    width: 24px; height: 24px; border-radius: 6px; flex: none;
+    background: var(--accent-soft);
+    display: grid; place-items: center;
+    color: var(--accent);
+  }
+  .pr-avatar svg { width: 14px; height: 14px; }
+  .pr-card-head b { font-size: 13.5px; }
+  .pr-card-head .bot-tag {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .04em;
+    color: var(--muted); background: var(--tint); padding: 1px 6px; border-radius: 4px;
+  }
+  .pr-card-head .when { margin-left: auto; font-size: 12px; color: var(--muted); }
+  .pr-card-body { padding: 14px 16px 16px; }
+  .pr-sev-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+  .pr-sev {
+    font-family: var(--mono); font-size: 10.5px; font-weight: 500; letter-spacing: .06em;
+    padding: 2px 8px; border-radius: 999px; text-transform: uppercase;
+    color: var(--flag); border: 1px solid var(--flag);
+  }
+  .pr-conf { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+  .pr-title { font-weight: 600; margin: 0 0 10px; line-height: 1.45; }
+  .pr-diff {
+    font-family: var(--mono); font-size: 12.5px; line-height: 1.6;
+    background: var(--raised); border: 1px solid var(--hair); border-radius: 6px;
+    padding: 8px 12px; overflow-x: auto;
+  }
+  .pr-diff .add { color: var(--accent); }
+  .pr-card-foot {
+    padding: 10px 16px; border-top: 1px solid var(--hair);
+    font-size: 12px; color: var(--muted);
+  }
+  .pr-card-foot code { font-size: 11px; }
+
+  /* ---- compare ---- */
+  .compare {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--hair);
+    border: 1px solid var(--hair);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 22px 0 8px;
+    max-width: 940px;
+  }
+  @media (max-width: 640px) { .compare { grid-template-columns: 1fr; } }
+  .compare-col { background: var(--surface); padding: 20px 22px; }
+  .compare-col h4 {
+    font-family: var(--display); font-size: 13px; font-weight: 600;
+    letter-spacing: .04em; text-transform: uppercase; margin: 0 0 14px;
+    color: var(--muted);
+  }
+  .compare-col.win h4 { color: var(--accent); }
+  .compare-col ul { margin: 0; padding: 0; list-style: none; }
+  .compare-col li {
+    display: flex; gap: 9px; align-items: flex-start;
+    font-size: 14.5px; line-height: 1.5; margin-bottom: 12px; color: var(--soft);
+  }
+  .compare-col li:last-child { margin-bottom: 0; }
+  .compare-col .mark { flex: none; width: 16px; height: 16px; margin-top: 2px; }
+  .compare-col.base .mark { color: var(--flag); }
+  .compare-col.win .mark { color: var(--accent); }
+  .compare-col.win li { color: var(--text); }
+
+  /* ---- feature grid ---- */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    margin: 22px 0 8px;
+  }
+  .feature-card {
+    border: 1px solid var(--hair);
+    border-radius: 10px;
+    background: var(--surface);
+    padding: 20px 20px 22px;
+    box-shadow: var(--shadow-sm);
+  }
+  .feature-card .f-num {
+    font-family: var(--mono); font-size: 11px; color: var(--accent);
+    letter-spacing: .08em; margin-bottom: 10px;
+  }
+  .feature-card h4 {
+    font-family: var(--display); font-size: 16.5px; font-weight: 600;
+    margin: 0 0 8px; letter-spacing: -.01em;
+  }
+  .feature-card p { font-size: 14.5px; color: var(--soft); margin: 0; line-height: 1.55; }
+  .feature-card code { font-size: .84em; }
+
+  /* ---- copyable code block ---- */
+  .code-box { position: relative; max-width: 940px; }
+  .code-box pre { margin: 0; padding-right: 90px; }
+  .copy-btn {
+    position: absolute; top: 10px; right: 10px;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .03em;
+    padding: 5px 10px; border-radius: 6px;
+    background: var(--surface); border: 1px solid var(--hair); color: var(--muted);
+    cursor: pointer;
+  }
+  .copy-btn:hover { color: var(--text); border-color: var(--accent); }
+</style>
+</head>
+<body>
 <nav class="topbar">
   <div class="topbar-inner">
     <span class="brand">Groundtruth</span>
     <span class="topnav">
-      <a href="#stages">Stages</a>
-      <a href="#example">Example</a>
-      <a href="#models">Models</a>
-      <a href="#choices">Not used</a>
+      <a href="#why">Why</a>
+      <a href="#stages">How it works</a>
+      <a href="#features">Features</a>
+      <a href="#quickstart">Get started</a>
     </span>
   </div>
 </nav>
 
 <div class="wrap">
-  <header class="masthead">
-    <p class="eyebrow">Design overview &middot; September 2026</p>
-    <h1>Groundtruth Pipeline</h1>
-    <p class="lede">Groundtruth is an AI code reviewer that only posts a finding when it can prove it. Written in Python, MIT-licensed.</p>
-    <p class="lede">Most AI reviewers aim for coverage and comment on everything. This one aims for precision, because a wrong comment costs more trust than a missed bug. Context is parsed, not retrieved, and nothing posts without surviving verification.</p>
-  </header>
+  <section class="hero">
+    <div>
+      <p class="eyebrow">Open source &middot; MIT license &middot; runs in your CI</p>
+      <h1>Most AI reviewers guess. This one has to prove it.</h1>
+      <p class="lede">Groundtruth reads the whole changed function, checks its real callers, and never posts a finding unless it can quote the exact line and survive a second, skeptical model. No vector database, no hosted service, no seat license &mdash; your own key, any provider, running in the CI you already have.</p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="https://github.com/groundtruth-code-review/groundtruth-code-review">
+          <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path></svg>
+          View on GitHub
+        </a>
+        <a class="btn btn-secondary" href="#quickstart">Copy the 12-line workflow</a>
+      </div>
+      <div class="stat-bar">
+        <div class="stat"><b>190</b><span>tests, offline</span></div>
+        <div class="stat"><b>3 + image</b><span>platforms covered</span></div>
+        <div class="stat"><b>&#36;0.003&ndash;0.01</b><span>typical cost / PR</span></div>
+        <div class="stat"><b>MIT</b><span>no seat license</span></div>
+      </div>
+    </div>
 
+    <div>
+      <div class="pr-card">
+        <div class="pr-card-head">
+          <span class="pr-avatar"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.4"/><path d="M10.4 10.4 L14 14" stroke-linecap="round"/></svg></span>
+          <b>groundtruth-review</b>
+          <span class="bot-tag">bot</span>
+          <span class="when">on invoice.py:1</span>
+        </div>
+        <div class="pr-card-body">
+          <div class="pr-sev-row">
+            <span class="pr-sev">High</span>
+            <span class="pr-conf">correctness &middot; confidence 0.81</span>
+          </div>
+          <p class="pr-title">New <code>promos</code> argument is required, but <code>checkout.py</code> still calls <code>calculate_discount(price)</code>.</p>
+          <div class="pr-diff"><span class="add">+def calculate_discount(price, promos):</span></div>
+        </div>
+        <div class="pr-card-foot">A real finding from the worked example below &middot; <code>groundtruth eval --cases cases</code> replays it offline</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="prose">
+    <h2 id="why">Why precision, not coverage</h2>
+    <p>Most AI reviewers optimize for coverage &mdash; say something about every changed line. Reviewers learn to tune that out fast, and the first time a bot invents a bug that isn't there, every real finding after it gets the same skeptical read. Groundtruth is built around the opposite bet: a quiet, accurate bot earns more trust than a chatty one, because a wrong comment costs more than a missed one.</p>
+  </div>
+
+  <div class="compare">
+    <div class="compare-col base">
+      <h4>What a coverage-first reviewer does</h4>
+      <ul>
+        <li><svg class="mark" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/></svg>Comments on nearly every changed line, so real findings drown in noise</li>
+        <li><svg class="mark" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/></svg>Pulls "related" context by embedding similarity &mdash; code that looks relevant, not code that provably is</li>
+        <li><svg class="mark" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/></svg>Runs as someone else's hosted service, on someone else's schedule and someone else's model</li>
+        <li><svg class="mark" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/></svg>Re-posts the same comment on every push, because nothing remembers what it already said</li>
+      </ul>
+    </div>
+    <div class="compare-col win">
+      <h4>What groundtruth does</h4>
+      <ul>
+        <li><svg class="mark" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="3,8.5 6.5,12 13,4"/></svg>Posts a finding only after it quotes a real line and survives a second, adversarial model pass</li>
+        <li><svg class="mark" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="3,8.5 6.5,12 13,4"/></svg>Parses the real function with Tree-sitter and finds its real callers with a text search &mdash; no embeddings anywhere</li>
+        <li><svg class="mark" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="3,8.5 6.5,12 13,4"/></svg>Runs as a step in your own CI, with your own key, on the model you choose</li>
+        <li><svg class="mark" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="3,8.5 6.5,12 13,4"/></svg>Fingerprints every finding by what it's about, not how it's worded, so re-runs never repeat a comment</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="prose">
+    <h2 id="stages">How it works</h2>
+    <p>Seven stages, each handing the next exactly one thing. Only three call a model at all, and each of those is a bounded, isolated round trip &mdash; everything else is deterministic code: parsing, searching, quote matching, fingerprinting.</p>
+  </div>
   <p class="hint">The handoff, stage by stage</p>
   <figure>
     <div class="scroller">
@@ -529,8 +771,6 @@
   </figure>
 
   <div class="prose">
-    <h2 id="stages">The seven stages</h2>
-
     <h3><span class="num">01</span> Trigger</h3>
     <p>A pull request event starts the run. The CI job checks out the repository with full history and calls one command, <code>groundtruth review</code>.</p>
     <p class="why"><b>Why CI:</b> the platform's own runner is already the queue and the compute. Nothing has to be hosted, so installing the tool is one workflow file and one secret.</p>
@@ -702,6 +942,71 @@ Reviewed with `anthropic/claude-sonnet-5` &middot; estimated $0.0032.&lt;/sub&gt
   <div class="prose">
     <p class="note">The summary call is handed the one verified finding and returns a sentence for the top of the comment &mdash; here, <i>&ldquo;A required argument was added to calculate_discount without updating its caller.&rdquo;</i> It names only <code>invoice.py</code>, a file in the verified set, so it passes the grounding check; a sentence naming anything else would be discarded and the plain list posted instead. Alongside the comment, one inline comment lands on <code>invoice.py:1</code> with the severity, category, confidence and quoted line.</p>
 
+  </div>
+
+  <div class="prose">
+    <h2 id="features">What you get</h2>
+    <p>Six pieces, each independently true of the code today &mdash; not a roadmap.</p>
+  </div>
+
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="f-num">01</div>
+      <h4>Bring your own key, any provider</h4>
+      <p>LiteLLM is embedded as a library. Claude, OpenAI, Azure, Bedrock, or a fully local Ollama model &mdash; the model is one config line, and the key comes from your environment, never a config file.</p>
+    </div>
+    <div class="feature-card">
+      <div class="f-num">02</div>
+      <h4>Deterministic context, no vector database</h4>
+      <p>A changed line expands to its whole function with Tree-sitter; its real callers are found by text search. A changed signature promotes those callers to must-include, even in files the pull request never touched.</p>
+    </div>
+    <div class="feature-card">
+      <div class="f-num">03</div>
+      <h4>A five-check gate before anything posts</h4>
+      <p>Quote match, line-in-diff, dedupe fingerprint, an adversarial skeptic pass with multiplied confidence, then rank and cap. Every rejection is recorded with the stage and the reason.</p>
+    </div>
+    <div class="feature-card">
+      <div class="f-num">04</div>
+      <h4>Tier the model per stage</h4>
+      <p>A stronger model proposes; a cheap one verifies and summarizes. <code>verify_model</code> and <code>summary_model</code> default to whatever you set for <code>model</code> &mdash; splitting tiers is opt-in, never a silent switch.</p>
+    </div>
+    <div class="feature-card">
+      <div class="f-num">05</div>
+      <h4>Three platforms, one container image</h4>
+      <p>GitHub, GitLab and Bitbucket Cloud adapters share one core and one JSON contract. The published image runs the same command as a step in Tekton, Argo Workflows or Jenkins on Kubernetes.</p>
+    </div>
+    <div class="feature-card">
+      <div class="f-num">06</div>
+      <h4>An eval harness, not a vibe check</h4>
+      <p>Labeled cases replay offline against recorded model responses. Every expected finding lands as caught, gated or missed &mdash; two very different failures that look identical from the outside.</p>
+    </div>
+  </div>
+
+  <div class="prose">
+    <h2 id="quickstart">Get started</h2>
+    <p>The whole install: one repository secret, one 12-line workflow file. No server, no database, no webhook to register.</p>
+  </div>
+
+  <div class="code-box">
+    <button class="copy-btn" type="button" data-copy-target="gh-yaml">Copy</button>
+    <pre id="gh-yaml"><code># .github/workflows/groundtruth.yml
+on: pull_request
+permissions:
+  pull-requests: write
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: groundtruth-code-review/groundtruth-code-review/adapters/github@main
+        with: { model: anthropic/claude-sonnet-5 }
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}</code></pre>
+  </div>
+
+  <div class="prose">
+    <p class="note">Add <code>ANTHROPIC_API_KEY</code> as a repository secret and that's the complete install. GitLab, Bitbucket Cloud and the container image are documented in the <a href="https://github.com/groundtruth-code-review/groundtruth-code-review#readme" style="color:var(--accent)">README</a>, and <code>--dry-run</code> shows the assembled context with no key and no model call at all.</p>
     <h2 id="models">Which model does what</h2>
     <p>Three stages call a model, and they do not need the same one. The model is a config line, so the tier is a deployment choice rather than a code change.</p>
   </div>
@@ -791,6 +1096,26 @@ Reviewed with `anthropic/claude-sonnet-5` &middot; estimated $0.0032.&lt;/sub&gt
     MIT licensed.
   </p>
 </footer>
+
+<script>
+  document.querySelectorAll('.copy-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var target = document.getElementById(btn.getAttribute('data-copy-target'));
+      if (!target) return;
+      var text = target.textContent;
+      var done = function () {
+        var original = btn.textContent;
+        btn.textContent = 'Copied';
+        setTimeout(function () { btn.textContent = original; }, 1600);
+      };
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(done, function () {});
+        }
+      } catch (err) {}
+    });
+  });
+</script>
 
 </body>
 </html>
