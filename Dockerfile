@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+#
 # A failing test suite cannot produce a shippable image.
 #
 # The runtime stage installs a wheel that only exists if the `test` stage
@@ -15,7 +17,12 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 
-FROM base AS test
+# Pinned to the builder's own architecture. The gate and the wheel it
+# produces are architecture-independent (the package is pure Python), so
+# running them once natively is enough -- without this pin, a multi-platform
+# release runs the whole suite again under arm64 emulation, which turns a
+# two-minute gate into a long one for no added confidence.
+FROM --platform=$BUILDPLATFORM base AS test
 
 WORKDIR /src
 COPY pyproject.toml README.md LICENSE ./
