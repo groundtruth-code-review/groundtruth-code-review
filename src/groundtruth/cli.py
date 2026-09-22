@@ -494,6 +494,14 @@ def _run_eval(args) -> int:
     print(json.dumps(report_to_dict(report), indent=2) if args.format == "json" else render_report(report))
 
     failures = []
+    # A leak is a gate regression: a case asserted this finding must be
+    # rejected and it reached the pull request instead. There is no
+    # threshold to tune -- the case says it must not get through.
+    if report.gate_leaked_total:
+        failures.append(
+            f"{report.gate_leaked_total} finding(s) leaked through the gate that a case "
+            "asserts must be rejected"
+        )
     if args.min_catch is not None and report.catch_rate < args.min_catch:
         failures.append(f"catch rate {report.catch_rate:.0%} below --min-catch {args.min_catch:.0%}")
     if args.max_fp is not None and report.false_positive_rate > args.max_fp:

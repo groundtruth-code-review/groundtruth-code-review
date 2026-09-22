@@ -39,7 +39,7 @@ RUN pip install --no-cache-dir ".[dev]" build
 RUN ruff check . \
     && pytest -q \
     && pytest -q adapters \
-    && groundtruth eval --cases cases --min-catch 0.6 --max-fp 0.2
+    && groundtruth eval --cases cases --min-catch 0.8 --max-fp 0.2
 
 RUN python -m build --wheel --outdir /wheels
 

@@ -62,6 +62,17 @@ class ExpectedFinding:
         return True
 
 
+def _expected(items: list) -> tuple[ExpectedFinding, ...]:
+    return tuple(
+        ExpectedFinding(
+            file=item["file"],
+            line=int(item["line"]),
+            title_contains=item.get("title_contains", ""),
+        )
+        for item in items
+    )
+
+
 @dataclass(frozen=True)
 class EvalCase:
     name: str
@@ -69,6 +80,12 @@ class EvalCase:
     head_sources: dict[str, str]
     base_sources: dict[str, str] = field(default_factory=dict)
     expected_findings: tuple[ExpectedFinding, ...] = ()
+    # Findings the reviewer is expected to propose and the gate is expected
+    # to reject. Kept apart from `expected_findings` on purpose: a case that
+    # exists to prove the gate works can never be "caught", so counting it
+    # in the catch rate caps that rate below 1.0 for structural reasons and
+    # makes --min-catch unusable as a CI gate.
+    expect_gated: tuple[ExpectedFinding, ...] = ()
     recorded_review: dict | None = None
     recorded_skeptic: dict | None = None
 
@@ -80,14 +97,8 @@ class EvalCase:
             diff=data["diff"],
             head_sources=data.get("head_sources", {}),
             base_sources=data.get("base_sources", {}),
-            expected_findings=tuple(
-                ExpectedFinding(
-                    file=item["file"],
-                    line=int(item["line"]),
-                    title_contains=item.get("title_contains", ""),
-                )
-                for item in data.get("expected_findings", [])
-            ),
+            expected_findings=_expected(data.get("expected_findings", [])),
+            expect_gated=_expected(data.get("expect_gated", [])),
             recorded_review=recorded.get("review"),
             recorded_skeptic=recorded.get("skeptic"),
         )
@@ -100,6 +111,9 @@ class CaseResult:
     gated: list[tuple[ExpectedFinding, str]] = field(default_factory=list)
     missed: list[ExpectedFinding] = field(default_factory=list)
     false_positives: list[Finding] = field(default_factory=list)
+    # assertions that the gate rejected something it was supposed to reject
+    gate_held: list[ExpectedFinding] = field(default_factory=list)
+    gate_leaked: list[ExpectedFinding] = field(default_factory=list)
 
     @property
     def expected_total(self) -> int:
@@ -129,6 +143,18 @@ class EvalReport:
     @property
     def false_positive_total(self) -> int:
         return sum(len(case.false_positives) for case in self.cases)
+
+    @property
+    def gate_held_total(self) -> int:
+        return sum(len(case.gate_held) for case in self.cases)
+
+    @property
+    def gate_leaked_total(self) -> int:
+        """Findings the gate was supposed to reject and did not. Any number
+        above zero is a gate regression, which is why it is reported on its
+        own rather than folded into the false-positive count.
+        """
+        return sum(len(case.gate_leaked) for case in self.cases)
 
     @property
     def catch_rate(self) -> float:
@@ -250,6 +276,19 @@ def run_case(case: EvalCase, review_llm=None, verify_llm=None, min_confidence: f
 
         result.missed.append(expected)
 
+    # Gate assertions: proposed, then correctly rejected. A leak here means
+    # something the gate used to stop is now reaching pull requests.
+    for expected in case.expect_gated:
+        leaked = next(
+            (i for i, finding in enumerate(posted) if i not in matched_posted and expected.matches(finding)),
+            None,
+        )
+        if leaked is not None:
+            matched_posted.add(leaked)
+            result.gate_leaked.append(expected)
+        else:
+            result.gate_held.append(expected)
+
     result.false_positives = [
         finding for i, finding in enumerate(posted) if i not in matched_posted
     ]
@@ -273,6 +312,10 @@ def render_report(report: EvalReport) -> str:
             lines.append(f"    gated    {expected.file}:{expected.line}  ({stage})")
         for expected in case.missed:
             lines.append(f"    missed   {expected.file}:{expected.line}")
+        for expected in case.gate_held:
+            lines.append(f"    gate ok  {expected.file}:{expected.line}  (rejected, as required)")
+        for expected in case.gate_leaked:
+            lines.append(f"    LEAKED   {expected.file}:{expected.line}  (gate should have rejected this)")
         for finding in case.false_positives:
             lines.append(f"    false +  {finding.file}:{finding.line}  {finding.title}")
         lines.append("")
@@ -285,6 +328,10 @@ def render_report(report: EvalReport) -> str:
         f"false positives {report.false_positive_total} "
         f"({report.false_positive_rate:.2f} per expected finding)"
     )
+    if report.gate_held_total or report.gate_leaked_total:
+        lines.append(
+            f"gate assertions {report.gate_held_total} held, {report.gate_leaked_total} leaked"
+        )
     return "\n".join(lines)
 
 
@@ -296,6 +343,8 @@ def report_to_dict(report: EvalReport) -> dict:
                 "caught": [f"{e.file}:{e.line}" for e in case.caught],
                 "gated": [{"finding": f"{e.file}:{e.line}", "stage": stage} for e, stage in case.gated],
                 "missed": [f"{e.file}:{e.line}" for e in case.missed],
+                "gate_held": [f"{e.file}:{e.line}" for e in case.gate_held],
+                "gate_leaked": [f"{e.file}:{e.line}" for e in case.gate_leaked],
                 "false_positives": [
                     {"file": f.file, "line": f.line, "title": f.title} for f in case.false_positives
                 ],
@@ -309,4 +358,6 @@ def report_to_dict(report: EvalReport) -> dict:
         "false_positive_total": report.false_positive_total,
         "catch_rate": round(report.catch_rate, 4),
         "false_positive_rate": round(report.false_positive_rate, 4),
+        "gate_held_total": report.gate_held_total,
+        "gate_leaked_total": report.gate_leaked_total,
     }

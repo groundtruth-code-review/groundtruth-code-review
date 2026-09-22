@@ -32,7 +32,7 @@ jobs:
       - name: Eval thresholds
         # The measurement that makes a prompt or model change reviewable:
         # labeled cases replayed against recorded responses, no key needed.
-        run: groundtruth eval --cases cases --min-catch 0.6 --max-fp 0.2
+        run: groundtruth eval --cases cases --min-catch 0.8 --max-fp 0.2
 
   image:
     # Proves the multi-stage build still works on every push, without

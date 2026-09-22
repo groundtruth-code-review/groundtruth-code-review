@@ -360,6 +360,14 @@ thinner context. Posted findings matching nothing expected are false
 positives. Both thresholds exit non-zero, so CI can gate a prompt or model
 change on the bug catch rate instead of on a reading of the diff.
 
+A case can also assert the opposite, with `expect_gated`: this finding must
+be **proposed and then rejected**. Those are graded separately and never
+counted in the catch rate — a case that exists to prove the gate works can
+never be "caught", so counting it would cap the rate below 1.0 for
+structural reasons and make `--min-catch` meaningless. A leak — something
+reaching a pull request that a case says must be rejected — fails the run
+outright, with no threshold to tune.
+
 ## Development
 
 ```bash

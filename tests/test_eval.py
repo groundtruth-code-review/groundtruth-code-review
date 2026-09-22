@@ -96,24 +96,38 @@ def test_the_shipped_cases_load_and_pass_their_own_thresholds(capsys):
     assert len(cases) >= 4
     report = run_suite(cases)
     assert report.false_positive_total == 0
-    assert report.catch_rate >= 0.6
+    # a gated-by-design case no longer sits in the denominator, so a real
+    # catch rate is reachable and the CI threshold can mean something
+    assert report.catch_rate == 1.0
+    assert report.gate_leaked_total == 0
 
 
-def test_eval_exits_nonzero_when_the_catch_rate_is_too_low(capsys):
-    assert main(["eval", "--cases", "cases", "--min-catch", "0.99"]) == 1
+def test_eval_exits_nonzero_when_the_catch_rate_is_too_low(tmp_path, capsys):
+    # a case whose bug is never proposed, so the catch rate really is 0 --
+    # the shipped suite now scores 1.0, so it cannot demonstrate this
+    import json as _json
+    case = {
+        "name": "missed", "diff": _DIFF, "head_sources": {"pager.py": _HEAD},
+        "expected_findings": [{"file": "pager.py", "line": 2, "title_contains": "off-by-one"}],
+        "recorded": {"review": {"findings": []},
+                     "skeptic": {"is_real": True, "is_actionable": True, "confidence": 0.9}},
+    }
+    (tmp_path / "missed.json").write_text(_json.dumps(case))
+    assert main(["eval", "--cases", str(tmp_path), "--min-catch", "0.8"]) == 1
     assert "below --min-catch" in capsys.readouterr().err
 
 
 def test_eval_exits_zero_when_thresholds_are_met():
-    assert main(["eval", "--cases", "cases", "--min-catch", "0.6", "--max-fp", "0.2"]) == 0
+    assert main(["eval", "--cases", "cases", "--min-catch", "0.8", "--max-fp", "0.2"]) == 0
 
 
 def test_eval_json_output_has_the_totals(capsys):
     main(["eval", "--cases", "cases", "--format", "json"])
     payload = json.loads(capsys.readouterr().out)
     assert payload["caught_total"] == 2
-    assert payload["gated_total"] == 1
-    assert payload["catch_rate"] > 0
+    assert payload["catch_rate"] == 1.0
+    assert payload["gate_held_total"] == 1
+    assert payload["gate_leaked_total"] == 0
 
 
 def test_eval_reports_a_missing_case_directory(capsys):
@@ -125,3 +139,52 @@ def test_the_parser_knows_both_commands():
     parser = build_arg_parser()
     assert parser.parse_args(["eval", "--cases", "cases"]).command == "eval"
     assert parser.parse_args(["review", "--base", "main"]).command == "review"
+
+
+# --- gate assertions are graded apart from recall -------------------------
+
+def test_a_gated_by_design_case_does_not_cap_the_catch_rate():
+    # the bug this replaced: a case that exists to prove the gate works sat
+    # in the catch-rate denominator, so the rate could never reach 1.0 and
+    # --min-catch was unusable as a CI gate
+    fabricated = {**_GOOD_FINDING, "quoted_code": "    end = page * per_page + 7777"}
+    case = EvalCase(
+        name="gate", diff=_DIFF, head_sources={"pager.py": _HEAD},
+        expected_findings=(),
+        expect_gated=(ExpectedFinding("pager.py", 2, "off-by-one"),),
+        recorded_review={"findings": [fabricated]},
+        recorded_skeptic={"is_real": True, "is_actionable": True, "confidence": 0.9},
+    )
+    report = run_suite([case])
+    assert report.catch_rate == 1.0          # nothing was expected to be caught
+    assert report.gate_held_total == 1
+    assert report.gate_leaked_total == 0
+
+
+def test_a_leak_is_reported_when_the_gate_lets_it_through():
+    # same case, but the finding is real enough to survive -- the gate
+    # assertion must fail rather than pass silently
+    case = EvalCase(
+        name="leak", diff=_DIFF, head_sources={"pager.py": _HEAD},
+        expected_findings=(),
+        expect_gated=(ExpectedFinding("pager.py", 2, "off-by-one"),),
+        recorded_review={"findings": [_GOOD_FINDING]},
+        recorded_skeptic={"is_real": True, "is_actionable": True, "confidence": 0.9},
+    )
+    report = run_suite([case])
+    assert report.gate_leaked_total == 1
+    assert report.gate_held_total == 0
+
+
+def test_eval_fails_on_a_gate_leak_with_no_threshold_to_tune(tmp_path, capsys):
+    import json as _json
+    case = {
+        "name": "leak", "diff": _DIFF, "head_sources": {"pager.py": _HEAD},
+        "expected_findings": [],
+        "expect_gated": [{"file": "pager.py", "line": 2, "title_contains": "off-by-one"}],
+        "recorded": {"review": {"findings": [_GOOD_FINDING]},
+                     "skeptic": {"is_real": True, "is_actionable": True, "confidence": 0.9}},
+    }
+    (tmp_path / "leak.json").write_text(_json.dumps(case))
+    assert main(["eval", "--cases", str(tmp_path)]) == 1
+    assert "leaked through the gate" in capsys.readouterr().err

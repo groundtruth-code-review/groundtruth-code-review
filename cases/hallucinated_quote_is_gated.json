@@ -7,13 +7,6 @@
   "base_sources": {
     "credit.py": "def apply_credit(balance, credit):\n    return balance + credit\n"
   },
-  "expected_findings": [
-    {
-      "file": "credit.py",
-      "line": 2,
-      "title_contains": "sign"
-    }
-  ],
   "recorded": {
     "review": {
       "findings": [
@@ -33,5 +26,12 @@
       "is_actionable": true,
       "confidence": 0.9
     }
-  }
+  },
+  "expect_gated": [
+    {
+      "file": "credit.py",
+      "line": 2,
+      "title_contains": "sign"
+    }
+  ]
 }
