@@ -8,8 +8,8 @@ one.
 ## Setup
 
 ```bash
-git clone https://github.com/varunkumar-dev/groundtruth-review
-cd groundtruth-review
+git clone https://github.com/groundtruth-code-review/groundtruth-code-review
+cd groundtruth-code-review
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 pytest             # the package

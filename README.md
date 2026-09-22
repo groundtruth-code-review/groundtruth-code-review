@@ -2,7 +2,7 @@
 
 **An AI code reviewer that proves what it claims.**
 
-[![ci](https://github.com/varunkumar-dev/groundtruth-review/actions/workflows/ci.yml/badge.svg)](https://github.com/varunkumar-dev/groundtruth-review/actions/workflows/ci.yml)
+[![ci](https://github.com/groundtruth-code-review/groundtruth-code-review/actions/workflows/ci.yml/badge.svg)](https://github.com/groundtruth-code-review/groundtruth-code-review/actions/workflows/ci.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Nothing gets posted to a pull request unless it's grounded in code that
@@ -51,7 +51,7 @@ flowchart TD
 
 The same pipeline, with a worked example traced through every stage and the
 handoffs animated, is at
-**[varunkumar-dev.github.io/groundtruth-review](https://varunkumar-dev.github.io/groundtruth-review/)**.
+**[groundtruth-code-review.github.io/groundtruth-code-review](https://groundtruth-code-review.github.io/groundtruth-code-review/)**.
 
 Stage 3 is where the interesting work happens, and it calls no model at all:
 a changed line becomes the whole function that contains it, that function's
@@ -140,7 +140,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - uses: varunkumar-dev/groundtruth-review/adapters/github@main
+      - uses: groundtruth-code-review/groundtruth-code-review/adapters/github@main
         with: { model: anthropic/claude-sonnet-5 }
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -172,7 +172,7 @@ so a Tekton task, an Argo Workflows step or a Jenkins-on-Kubernetes agent can
 run the review as a pod:
 
 ```yaml
-image: ghcr.io/varunkumar-dev/groundtruth-review:0.1.0
+image: ghcr.io/groundtruth-code-review/groundtruth-code-review:0.1.0
 args: ["review", "--repo", "/workspace", "--base", "origin/main", "--format", "json"]
 env:
   - name: ANTHROPIC_API_KEY
@@ -192,8 +192,8 @@ key is never read from config, only from the environment.
 ## Quickstart (CLI + library)
 
 ```bash
-git clone https://github.com/varunkumar-dev/groundtruth-review
-cd groundtruth-review
+git clone https://github.com/groundtruth-code-review/groundtruth-code-review
+cd groundtruth-code-review
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 pytest
