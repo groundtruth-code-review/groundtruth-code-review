@@ -1,0 +1,50 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install -e ".[dev]"
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Package tests
+        run: pytest -q
+
+      - name: Adapter tests
+        # Outside testpaths on purpose: these import no package code, so they
+        # run as their own suite rather than being collected with the rest.
+        run: pytest -q adapters
+
+      - name: Eval thresholds
+        # The measurement that makes a prompt or model change reviewable:
+        # labeled cases replayed against recorded responses, no key needed.
+        run: groundtruth eval --cases cases --min-catch 0.6 --max-fp 0.2
+
+  image:
+    # Proves the multi-stage build still works on every push, without
+    # publishing anything. The test stage inside the Dockerfile is what gates
+    # the wheel the runtime stage installs.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

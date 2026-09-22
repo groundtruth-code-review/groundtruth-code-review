@@ -2,6 +2,9 @@
 
 **An AI code reviewer that proves what it claims.**
 
+[![ci](https://github.com/varunkumar-dev/groundtruth-review/actions/workflows/ci.yml/badge.svg)](https://github.com/varunkumar-dev/groundtruth-review/actions/workflows/ci.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Nothing gets posted to a pull request unless it's grounded in code that
 provably exists in the diff and survives a second, adversarial AI pass
 cross-examining it. No vector database, no RAG — context comes from a
@@ -157,6 +160,31 @@ into your `bitbucket-pipelines.yml`. It needs `clone: depth: full` and a
 fetch of the destination branch, which Pipelines gives you by name rather
 than as a SHA. Findings land as inline-anchored comments.
 
+## Running it in Kubernetes, or any container
+
+There is no server to deploy and no Helm chart to install: a review is one
+command that reads a diff and exits. What in-cluster CI needs is the image,
+so a Tekton task, an Argo Workflows step or a Jenkins-on-Kubernetes agent can
+run the review as a pod:
+
+```yaml
+image: ghcr.io/varunkumar-dev/groundtruth-review:v1
+args: ["review", "--repo", "/workspace", "--base", "origin/main", "--format", "json"]
+env:
+  - name: ANTHROPIC_API_KEY
+    valueFrom:
+      secretKeyRef: { name: groundtruth, key: api-key }
+```
+
+The image carries `git` and `ripgrep`, runs as an unprivileged user, and its
+`Dockerfile` is multi-stage: the runtime stage installs a wheel that only
+exists if lint, both test suites and the eval thresholds passed first, so a
+failing suite cannot produce a shippable image.
+
+Inject the provider key from a real secrets manager — the `secretKeyRef`
+above is the minimum, and External Secrets or a Vault agent is better. The
+key is never read from config, only from the environment.
+
 ## Quickstart (CLI + library)
 
 ```bash
@@ -300,7 +328,13 @@ file at all.
       grading, and `--min-catch` / `--max-fp` thresholds for CI
 - [x] `adapters/gitlab`, `adapters/bitbucket_cloud` — same core command,
       each speaking only its own API
-- [ ] `adapters/bitbucket_dc` + `deploy/` — self-hosted server mode for orgs
+- [x] a container image and the CI that gates it — multi-stage build whose
+      test stage gates the wheel, published to GHCR on a version tag
+- [ ] publish to PyPI, so installing stops meaning a git URL
+- [ ] `adapters/bitbucket_dc` + `deploy/` — self-hosted server mode for orgs,
+      and the Helm chart that installs it. Deliberately not started before
+      the server exists: a chart with no workload to run, and sizing numbers
+      nobody measured, would be YAML pretending to be a deployment
       (Docker Compose + Helm, not Kustomize — see the top-level design doc's
       reasoning)
 
