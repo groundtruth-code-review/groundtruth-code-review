@@ -99,10 +99,15 @@ def rg_filters() -> list[str]:
     to be on a machine.
     """
     args: list[str] = []
-    for directory in sorted(_SKIP_DIRS):
-        args += ["--glob", f"!**/{directory}/**"]
+    # Order matters, and it is the opposite of what reads naturally: in
+    # ripgrep a later glob beats an earlier one, so the exclusions have to
+    # come after the extension globs. Excluding first let `*.py` re-admit
+    # `node_modules/pkg.py`, which is exactly the bug this function exists
+    # to prevent.
     for ext in sorted(_SEARCHABLE_EXT):
         args += ["--glob", f"*{ext}"]
+    for directory in sorted(_SKIP_DIRS):
+        args += ["--glob", f"!**/{directory}/**"]
     args += ["--max-filesize", str(_MAX_FILE_BYTES)]
     return args
 

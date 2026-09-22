@@ -83,6 +83,17 @@ def test_rg_filters_exclude_every_directory_the_python_walk_skips():
         assert f"!**/{directory}/**" in args, f"{directory} is skipped by one path only"
 
 
+def test_rg_exclusions_come_after_the_extension_globs():
+    # ripgrep gives later globs precedence, so excluding before including
+    # lets *.py re-admit node_modules/pkg.py
+    from groundtruth.context_engine.callers import rg_filters
+
+    args = rg_filters()
+    last_include = max(i for i, a in enumerate(args) if a.startswith("*."))
+    first_exclude = min(i for i, a in enumerate(args) if a.startswith("!"))
+    assert first_exclude > last_include
+
+
 def test_rg_filters_include_every_searchable_extension_and_cap_size():
     from groundtruth.context_engine.callers import _MAX_FILE_BYTES, _SEARCHABLE_EXT, rg_filters
 
