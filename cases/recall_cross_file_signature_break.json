@@ -1,0 +1,41 @@
+{
+  "name": "recall_cross_file_signature_break",
+  "track": "recall",
+  "about": "A required argument is added and a caller in a file the pull request never touched still passes one. Only the promoted caller in the context bundle makes this findable -- the headline capability.",
+  "diff": "diff --git a/invoice.py b/invoice.py\n--- a/invoice.py\n+++ b/invoice.py\n@@ -1,2 +1,3 @@\n-def calculate_discount(price):\n-    return price * 0.9\n+def calculate_discount(price, promos):\n+    rate = 1 - sum(p.rate for p in promos)\n+    return price * rate\n",
+  "head_sources": {
+    "invoice.py": "def calculate_discount(price, promos):\n    rate = 1 - sum(p.rate for p in promos)\n    return price * rate\n",
+    "checkout.py": "from invoice import calculate_discount\n\n\ndef checkout(price):\n    return calculate_discount(price)\n"
+  },
+  "base_sources": {
+    "invoice.py": "def calculate_discount(price):\n    return price * 0.9\n"
+  },
+  "expected_findings": [
+    {
+      "file": "invoice.py",
+      "line": 1,
+      "title_contains": "checkout"
+    }
+  ],
+  "recorded": {
+    "review": {
+      "findings": [
+        {
+          "file": "invoice.py",
+          "line": 1,
+          "category": "correctness",
+          "severity": "high",
+          "confidence": 0.9,
+          "title": "New promos argument is required, but checkout.py still calls calculate_discount(price)",
+          "quoted_code": "def calculate_discount(price, promos):"
+        }
+      ]
+    },
+    "skeptic": {
+      "is_real": true,
+      "is_actionable": true,
+      "confidence": 0.9,
+      "reason": "confirmed by the evidence"
+    }
+  }
+}

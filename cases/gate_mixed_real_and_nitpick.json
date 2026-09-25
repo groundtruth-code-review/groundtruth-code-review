@@ -1,0 +1,70 @@
+{
+  "name": "gate_mixed_real_and_nitpick",
+  "track": "pipeline",
+  "about": "One real injection and one spacing nitpick in the same diff. The skeptic judges them separately: the injection posts, the nitpick is judged not actionable and dropped.",
+  "diff": "diff --git a/users.py b/users.py\n--- a/users.py\n+++ b/users.py\n@@ -1,4 +1,4 @@\n def find_user(cur, user_id):\n-    cur.execute(\"select * from users where id = %s\", (user_id,))\n-    row = cur.fetchone()\n+    cur.execute(\"select * from users where id = \" + user_id)\n+    row=cur.fetchone()\n     return row\n",
+  "head_sources": {
+    "users.py": "def find_user(cur, user_id):\n    cur.execute(\"select * from users where id = \" + user_id)\n    row=cur.fetchone()\n    return row\n"
+  },
+  "base_sources": {
+    "users.py": "def find_user(cur, user_id):\n    cur.execute(\"select * from users where id = %s\", (user_id,))\n    row = cur.fetchone()\n    return row\n"
+  },
+  "expected_findings": [
+    {
+      "file": "users.py",
+      "line": 2,
+      "title_contains": "injection"
+    }
+  ],
+  "recorded": {
+    "review": {
+      "findings": [
+        {
+          "file": "users.py",
+          "line": 2,
+          "category": "security",
+          "severity": "high",
+          "confidence": 0.9,
+          "title": "SQL injection: user_id is concatenated",
+          "quoted_code": "    cur.execute(\"select * from users where id = \" + user_id)"
+        },
+        {
+          "file": "users.py",
+          "line": 3,
+          "category": "conventions",
+          "severity": "low",
+          "confidence": 0.9,
+          "title": "Missing spacing around assignment",
+          "quoted_code": "    row=cur.fetchone()"
+        }
+      ]
+    },
+    "skeptic": [
+      {
+        "match": "injection",
+        "response": {
+          "is_real": true,
+          "is_actionable": true,
+          "confidence": 0.95
+        }
+      },
+      {
+        "match": "spacing",
+        "response": {
+          "is_real": true,
+          "is_actionable": false,
+          "confidence": 0.9,
+          "reason": "style only"
+        }
+      }
+    ]
+  },
+  "expect_gated": [
+    {
+      "file": "users.py",
+      "line": 3,
+      "title_contains": "spacing",
+      "stage": "low_confidence"
+    }
+  ]
+}

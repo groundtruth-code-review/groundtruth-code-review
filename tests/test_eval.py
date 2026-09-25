@@ -122,12 +122,16 @@ def test_eval_exits_zero_when_thresholds_are_met():
 
 
 def test_eval_json_output_has_the_totals(capsys):
+    # properties of the shipped suite, not its size -- a count pinned here
+    # would break every time someone added a case
     main(["eval", "--cases", "cases", "--format", "json"])
     payload = json.loads(capsys.readouterr().out)
-    assert payload["caught_total"] == 2
+    assert payload["caught_total"] > 0
     assert payload["catch_rate"] == 1.0
-    assert payload["gate_held_total"] == 1
+    assert payload["gate_held_total"] > 0
     assert payload["gate_leaked_total"] == 0
+    assert payload["gate_wrong_stage_total"] == 0
+    assert payload["gate_unexercised_total"] == 0
 
 
 def test_eval_reports_a_missing_case_directory(capsys):
@@ -188,3 +192,141 @@ def test_eval_fails_on_a_gate_leak_with_no_threshold_to_tune(tmp_path, capsys):
     (tmp_path / "leak.json").write_text(_json.dumps(case))
     assert main(["eval", "--cases", str(tmp_path)]) == 1
     assert "leaked through the gate" in capsys.readouterr().err
+
+
+# --- a gate case must hold for the right reason ---------------------------
+
+def _gate_case(finding, stage, skeptic=None):
+    return EvalCase(
+        name="g", diff=_DIFF, head_sources={"pager.py": _HEAD},
+        expect_gated=(ExpectedFinding("pager.py", 2, "off-by-one", stage=stage),),
+        recorded_review={"findings": [finding]},
+        recorded_skeptic=skeptic or {"is_real": True, "is_actionable": True, "confidence": 0.9},
+    )
+
+
+def test_a_gate_case_rejected_by_the_wrong_stage_fails():
+    # the case says the location check must reject it; the quote check gets
+    # there first. Right outcome, wrong reason -- and the location check was
+    # never tested, so this must not count as a pass
+    fabricated = {**_GOOD_FINDING, "quoted_code": "    end = page * per_page + 7777"}
+    report = run_suite([_gate_case(fabricated, "bad_location")])
+    assert report.gate_wrong_stage_total == 1
+    assert report.gate_held_total == 0
+
+
+def test_a_gate_case_rejected_by_the_right_stage_holds():
+    fabricated = {**_GOOD_FINDING, "quoted_code": "    end = page * per_page + 7777"}
+    report = run_suite([_gate_case(fabricated, "hallucination")])
+    assert report.gate_held_total == 1
+    assert report.gate_wrong_stage_total == 0
+
+
+def test_eval_fails_on_a_wrong_stage(tmp_path, capsys):
+    import json as _json
+    fabricated = {**_GOOD_FINDING, "quoted_code": "    end = page * per_page + 7777"}
+    (tmp_path / "c.json").write_text(_json.dumps({
+        "name": "c", "diff": _DIFF, "head_sources": {"pager.py": _HEAD},
+        "expect_gated": [{"file": "pager.py", "line": 2, "title_contains": "off-by-one",
+                          "stage": "bad_location"}],
+        "recorded": {"review": {"findings": [fabricated]}},
+    }))
+    assert main(["eval", "--cases", str(tmp_path)]) == 1
+    assert "wrong reason" in capsys.readouterr().err
+
+
+def test_a_gate_case_that_is_never_proposed_is_untested_not_held():
+    # this used to count as held: the gate "passed" a test it never took
+    report = run_suite([EvalCase(
+        name="g", diff=_DIFF, head_sources={"pager.py": _HEAD},
+        expect_gated=(ExpectedFinding("pager.py", 2, "off-by-one"),),
+        recorded_review={"findings": []},
+    )])
+    assert report.gate_unexercised_total == 1
+    assert report.gate_held_total == 0
+
+
+# --- one diff, two findings, judged separately ----------------------------
+
+def test_the_recorded_skeptic_can_answer_per_finding():
+    from groundtruth.eval import RecordedLlm
+
+    llm = RecordedLlm([
+        {"match": "injection", "response": {"is_real": True, "confidence": 0.95}},
+        {"match": "spacing", "response": {"is_real": False, "confidence": 0.1}},
+        {"response": {"is_real": True, "confidence": 0.5}},
+    ])
+    assert llm.complete_json("s", "Finding: SQL injection here")["confidence"] == 0.95
+    assert llm.complete_json("s", "Finding: missing spacing")["confidence"] == 0.1
+    assert llm.complete_json("s", "Finding: something else")["confidence"] == 0.5
+
+
+def test_a_single_recorded_answer_still_answers_everything():
+    from groundtruth.eval import RecordedLlm
+
+    llm = RecordedLlm({"is_real": True, "confidence": 0.7})
+    assert llm.complete_json("s", "anything")["confidence"] == 0.7
+
+
+# --- --live uses real models and only the recall cases --------------------
+
+def test_live_mode_builds_clients_from_config_and_skips_pipeline_cases(tmp_path, monkeypatch, capsys):
+    import groundtruth.cli as cli_module
+
+    built = []
+
+    class RecordingClient:
+        def __init__(self, model, api_base=None, **kwargs):
+            built.append(model)
+
+        def complete_json(self, system, user):
+            if "skeptical staff engineer" in system.lower():
+                return {"is_real": True, "is_actionable": True, "confidence": 0.9}
+            return {"findings": []}
+
+    monkeypatch.setattr(cli_module, "LlmClient", RecordingClient)
+    config = tmp_path / ".groundtruth.yml"
+    config.write_text("model: anthropic/claude-sonnet-5\nverify_model: openai/gpt-4o-mini\n")
+
+    main(["eval", "--cases", "cases", "--live", "--config", str(config), "--format", "json"])
+    out = capsys.readouterr()
+
+    assert built == ["anthropic/claude-sonnet-5", "openai/gpt-4o-mini"]
+    payload = __import__("json").loads(out.out)
+    names = {c["name"] for c in payload["cases"]}
+    assert not any(n.startswith("gate_") for n in names), "pipeline cases must not run live"
+    assert "billed" in out.err
+
+
+def test_live_mode_can_override_the_verifier_to_compare_providers(tmp_path, monkeypatch, capsys):
+    import groundtruth.cli as cli_module
+
+    built = []
+
+    class RecordingClient:
+        def __init__(self, model, api_base=None, **kwargs):
+            built.append(model)
+
+        def complete_json(self, system, user):
+            return {"findings": []}
+
+    monkeypatch.setattr(cli_module, "LlmClient", RecordingClient)
+    config = tmp_path / ".groundtruth.yml"
+    config.write_text("model: anthropic/claude-sonnet-5\n")
+
+    main(["eval", "--cases", "cases", "--live", "--config", str(config),
+          "--verify-model", "openai/gpt-4o-mini", "--format", "json"])
+    capsys.readouterr()
+    assert built == ["anthropic/claude-sonnet-5", "openai/gpt-4o-mini"]
+
+
+def test_every_shipped_case_declares_its_track_and_purpose():
+    for case in load_cases("cases"):
+        assert case.track in {"recall", "pipeline"}, case.name
+        assert case.about, f"{case.name} does not say what it proves"
+
+
+def test_every_shipped_gate_case_names_its_stage():
+    for case in load_cases("cases"):
+        for expected in case.expect_gated:
+            assert expected.stage, f"{case.name} does not say which stage must reject it"

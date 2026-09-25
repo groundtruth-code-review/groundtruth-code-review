@@ -1,0 +1,42 @@
+{
+  "name": "gate_short_quote",
+  "track": "pipeline",
+  "about": "A five-character quote would match almost any codebase, so it proves nothing and is rejected before any model call is spent on it.",
+  "diff": "diff --git a/retry.py b/retry.py\n--- a/retry.py\n+++ b/retry.py\n@@ -1,2 +1,3 @@\n def backoff(attempt):\n-    return 2 ** attempt\n+    x = 1\n+    return x * 2 ** attempt\n",
+  "head_sources": {
+    "retry.py": "def backoff(attempt):\n    x = 1\n    return x * 2 ** attempt\n"
+  },
+  "base_sources": {
+    "retry.py": "def backoff(attempt):\n    return 2 ** attempt\n"
+  },
+  "expected_findings": [],
+  "recorded": {
+    "review": {
+      "findings": [
+        {
+          "file": "retry.py",
+          "line": 2,
+          "category": "correctness",
+          "severity": "high",
+          "confidence": 0.9,
+          "title": "Base delay is hardcoded",
+          "quoted_code": "x = 1"
+        }
+      ]
+    },
+    "skeptic": {
+      "is_real": true,
+      "is_actionable": true,
+      "confidence": 0.9,
+      "reason": "confirmed by the evidence"
+    }
+  },
+  "expect_gated": [
+    {
+      "file": "retry.py",
+      "line": 2,
+      "title_contains": "hardcoded",
+      "stage": "hallucination"
+    }
+  ]
+}

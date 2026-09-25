@@ -360,8 +360,27 @@ file at all.
 ## Measuring it
 
 A review tool you cannot measure is one nobody can improve. `cases/` holds
-labeled diffs with recorded model responses, so the suite runs offline and
-free:
+labeled diffs, and every case says which of two things it measures:
+
+- **`pipeline`** — the gate and the context engine. The recorded model
+  response is shaped to make one specific thing happen — a quote with its
+  whitespace collapsed, a real line reported at the wrong number, two
+  findings in one hunk — and the case checks the pipeline handles it.
+  Offline only: a live model won't reproduce the exact mistake the case was
+  built around.
+- **`recall`** — a real bug a model should find on its own.
+
+Be clear about what the offline run proves. Every recorded review already
+contains the bug, so an offline "catch" means the pipeline let a known-good
+finding through — it says nothing about whether a model would have found
+it. That is what `--live` is for: the recorded answers are discarded and
+your configured models have to find each bug themselves.
+
+```bash
+groundtruth eval --live --verify-model openai/gpt-4o-mini
+```
+
+Offline it runs free, with no key:
 
 ```bash
 groundtruth eval --cases cases --min-catch 0.8 --max-fp 0.2
@@ -382,6 +401,11 @@ never be "caught", so counting it would cap the rate below 1.0 for
 structural reasons and make `--min-catch` meaningless. A leak — something
 reaching a pull request that a case says must be rejected — fails the run
 outright, with no threshold to tune.
+
+A gate case also names the **stage** that must do the rejecting. Without
+that, a case built to prove the location check could pass because the quote
+check got there first: the right outcome for the wrong reason, with the
+location check never tested at all. That fails the run too.
 
 ## Development
 

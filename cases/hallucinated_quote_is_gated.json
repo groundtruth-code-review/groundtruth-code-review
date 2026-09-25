@@ -1,5 +1,7 @@
 {
   "name": "a finding quoting code that was never written",
+  "track": "pipeline",
+  "about": "The reviewer quotes code that was never written. The quote check must reject it before any paid call.",
   "diff": "diff --git a/credit.py b/credit.py\n--- a/credit.py\n+++ b/credit.py\n@@ -1,2 +1,2 @@\n def apply_credit(balance, credit):\n-    return balance + credit\n+    return balance - credit\n",
   "head_sources": {
     "credit.py": "def apply_credit(balance, credit):\n    return balance - credit\n"
@@ -31,7 +33,8 @@
     {
       "file": "credit.py",
       "line": 2,
-      "title_contains": "sign"
+      "title_contains": "sign",
+      "stage": "hallucination"
     }
   ]
 }

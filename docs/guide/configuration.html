@@ -130,7 +130,15 @@ verify_model: anthropic/claude-haiku-4-5-20251001</code></pre>
       </div>
       <p class="why"><b>Why this is worth doing:</b> the skeptic pass exists to be a second opinion, and a second opinion from the same model is not much of one. Two runs of one model share the same training, the same blind spots and the same habits of mind, and a model asked to judge its own kind of output is inclined to agree with it. A different provider's model was trained differently, so it is less likely to share the specific mistake the first one made. The verifier is never told which model proposed the finding, so the cross-examination is independent in fact, not just in name.</p>
       <div class="callout"><b>You need both keys.</b> Each provider reads its own environment variable, so a Claude-plus-GPT run needs <code>ANTHROPIC_API_KEY</code> <i>and</i> <code>OPENAI_API_KEY</code> set. Miss one and every call to that provider fails &mdash; which the review now reports as a failed run rather than a clean one.</div>
-      <p>This is reasoning about why independence helps, not a measurement that it does on your code. The <code>eval</code> harness is how you find out: run your labeled cases once with a same-provider verifier and once with a cross-provider one, and compare the gated and leaked counts.</p>
+      <p>This is reasoning about why independence helps, not a measurement that it does on your code. <code>groundtruth eval --live</code> is how you find out &mdash; it runs the recall cases against your real models, and <code>--verify-model</code> lets you swap only the verifier between runs:</p>
+      <div class="code-box">
+        <pre><code># same provider for both
+groundtruth eval --live --model anthropic/claude-sonnet-5   --verify-model anthropic/claude-haiku-4-5-20251001
+
+# cross-provider verifier, same cases, same reviewer
+groundtruth eval --live --model anthropic/claude-sonnet-5   --verify-model openai/gpt-4o-mini</code></pre>
+      </div>
+      <p>Compare the catch rate and the false positives. These are real, billed calls, and a handful of cases will not settle the question on their own &mdash; but it is a measurement rather than an argument.</p>
 
       <h2>Flags that override the file</h2>
       <div class="tablewrap">

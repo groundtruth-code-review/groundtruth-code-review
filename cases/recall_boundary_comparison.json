@@ -1,0 +1,40 @@
+{
+  "name": "recall_boundary_comparison",
+  "track": "recall",
+  "about": "A comparison loses its equals sign, so exactly-18 is now rejected. Small diffs hide the easiest bugs to miss.",
+  "diff": "diff --git a/eligibility.py b/eligibility.py\n--- a/eligibility.py\n+++ b/eligibility.py\n@@ -1,2 +1,2 @@\n def is_adult(age):\n-    return age >= 18\n+    return age > 18\n",
+  "head_sources": {
+    "eligibility.py": "def is_adult(age):\n    return age > 18\n"
+  },
+  "base_sources": {
+    "eligibility.py": "def is_adult(age):\n    return age >= 18\n"
+  },
+  "expected_findings": [
+    {
+      "file": "eligibility.py",
+      "line": 2,
+      "title_contains": "18"
+    }
+  ],
+  "recorded": {
+    "review": {
+      "findings": [
+        {
+          "file": "eligibility.py",
+          "line": 2,
+          "category": "correctness",
+          "severity": "high",
+          "confidence": 0.9,
+          "title": "Users aged exactly 18 are now rejected",
+          "quoted_code": "    return age > 18"
+        }
+      ]
+    },
+    "skeptic": {
+      "is_real": true,
+      "is_actionable": true,
+      "confidence": 0.9,
+      "reason": "confirmed by the evidence"
+    }
+  }
+}

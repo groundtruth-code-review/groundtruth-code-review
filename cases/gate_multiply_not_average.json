@@ -1,0 +1,42 @@
+{
+  "name": "gate_multiply_not_average",
+  "track": "pipeline",
+  "about": "Reviewer 0.9, skeptic 0.6. Multiplied: 0.54, below the 0.7 bar, so it is dropped. Averaged it would be 0.75 and would post -- a doubtful skeptic must be able to block a finding.",
+  "diff": "diff --git a/fees.py b/fees.py\n--- a/fees.py\n+++ b/fees.py\n@@ -1,2 +1,2 @@\n def apply_fee(amount):\n-    return amount + 2\n+    return amount * 1.02 + 2\n",
+  "head_sources": {
+    "fees.py": "def apply_fee(amount):\n    return amount * 1.02 + 2\n"
+  },
+  "base_sources": {
+    "fees.py": "def apply_fee(amount):\n    return amount + 2\n"
+  },
+  "expected_findings": [],
+  "recorded": {
+    "review": {
+      "findings": [
+        {
+          "file": "fees.py",
+          "line": 2,
+          "category": "correctness",
+          "severity": "high",
+          "confidence": 0.9,
+          "title": "Fee is now compounded with the percentage",
+          "quoted_code": "    return amount * 1.02 + 2"
+        }
+      ]
+    },
+    "skeptic": {
+      "is_real": true,
+      "is_actionable": true,
+      "confidence": 0.6,
+      "reason": "plausible but unclear"
+    }
+  },
+  "expect_gated": [
+    {
+      "file": "fees.py",
+      "line": 2,
+      "title_contains": "fee",
+      "stage": "low_confidence"
+    }
+  ]
+}

@@ -51,6 +51,11 @@ class ExpectedFinding:
     file: str
     line: int
     title_contains: str = ""
+    # For a gate assertion: the stage that must do the rejecting. Without
+    # it, a case built to prove the location check could "pass" because the
+    # quote check rejected the finding first -- right outcome, wrong reason,
+    # and the location check never tested at all.
+    stage: str = ""
 
     def matches(self, finding: Finding) -> bool:
         if finding.file != self.file:
@@ -68,6 +73,7 @@ def _expected(items: list) -> tuple[ExpectedFinding, ...]:
             file=item["file"],
             line=int(item["line"]),
             title_contains=item.get("title_contains", ""),
+            stage=item.get("stage", ""),
         )
         for item in items
     )
@@ -87,7 +93,13 @@ class EvalCase:
     # makes --min-catch unusable as a CI gate.
     expect_gated: tuple[ExpectedFinding, ...] = ()
     recorded_review: dict | None = None
-    recorded_skeptic: dict | None = None
+    recorded_skeptic: dict | list | None = None
+    # "recall": a real bug a model should find -- runs offline and --live.
+    # "pipeline": exercises the gate or context engine with a response
+    # shaped to test it -- offline only, because a live model will not
+    # reproduce the exact mistake the case was built around.
+    track: str = "recall"
+    about: str = ""
 
     @classmethod
     def from_dict(cls, data: dict, name: str = "") -> "EvalCase":
@@ -101,6 +113,8 @@ class EvalCase:
             expect_gated=_expected(data.get("expect_gated", [])),
             recorded_review=recorded.get("review"),
             recorded_skeptic=recorded.get("skeptic"),
+            track=data.get("track", "recall"),
+            about=data.get("about", ""),
         )
 
 
@@ -114,6 +128,11 @@ class CaseResult:
     # assertions that the gate rejected something it was supposed to reject
     gate_held: list[ExpectedFinding] = field(default_factory=list)
     gate_leaked: list[ExpectedFinding] = field(default_factory=list)
+    # the finding was never proposed, so the gate was never tested -- not
+    # a pass. Counting it as "held" let a gate case succeed without the
+    # gate ever seeing the thing it was supposed to reject.
+    gate_unexercised: list[ExpectedFinding] = field(default_factory=list)
+    gate_wrong_stage: list[tuple[ExpectedFinding, str]] = field(default_factory=list)
 
     @property
     def expected_total(self) -> int:
@@ -149,6 +168,14 @@ class EvalReport:
         return sum(len(case.gate_held) for case in self.cases)
 
     @property
+    def gate_wrong_stage_total(self) -> int:
+        return sum(len(case.gate_wrong_stage) for case in self.cases)
+
+    @property
+    def gate_unexercised_total(self) -> int:
+        return sum(len(case.gate_unexercised) for case in self.cases)
+
+    @property
     def gate_leaked_total(self) -> int:
         """Findings the gate was supposed to reject and did not. Any number
         above zero is a gate regression, which is why it is reported on its
@@ -178,17 +205,34 @@ class EvalReport:
 
 
 class RecordedLlm:
-    """Replays one recorded response, for one role, however many times that
-    role is called. No network, no key, no variance between runs.
+    """Replays recorded responses for one role. No network, no key, no
+    variance between runs.
+
+    A single dict answers every call. A list answers per finding: each entry
+    is `{"match": "...", "response": {...}}`, and the first entry whose
+    `match` appears in the prompt answers it. That is what lets one case
+    hold a real bug and a nitpick in the same diff and have the skeptic
+    judge them differently -- the most ordinary shape a real pull request
+    has, and one a single shared response could not express. An entry with
+    no `match` is the fallback.
     """
 
-    def __init__(self, response: dict | None):
+    def __init__(self, response: dict | list | None):
         self._response = response or {}
         self.calls = 0
 
     def complete_json(self, system: str, user: str) -> dict:
         self.calls += 1
-        return self._response
+        if isinstance(self._response, dict):
+            return self._response
+        fallback = {}
+        for entry in self._response:
+            match = entry.get("match")
+            if match is None:
+                fallback = entry.get("response", {})
+            elif match in user:
+                return entry.get("response", {})
+        return fallback
 
 
 def load_cases(path: Path | str) -> list[EvalCase]:
@@ -286,6 +330,16 @@ def run_case(case: EvalCase, review_llm=None, verify_llm=None, min_confidence: f
         if leaked is not None:
             matched_posted.add(leaked)
             result.gate_leaked.append(expected)
+            continue
+
+        dropped = next((v for v in report.dropped if expected.matches(v.finding)), None)
+        if dropped is None:
+            result.gate_unexercised.append(expected)
+            continue
+
+        actual = dropped.dropped_at.value if dropped.dropped_at else "ranked out"
+        if expected.stage and actual != expected.stage:
+            result.gate_wrong_stage.append((expected, actual))
         else:
             result.gate_held.append(expected)
 
@@ -316,6 +370,15 @@ def render_report(report: EvalReport) -> str:
             lines.append(f"    gate ok  {expected.file}:{expected.line}  (rejected, as required)")
         for expected in case.gate_leaked:
             lines.append(f"    LEAKED   {expected.file}:{expected.line}  (gate should have rejected this)")
+        for expected, actual in case.gate_wrong_stage:
+            lines.append(
+                f"    WRONG    {expected.file}:{expected.line}  "
+                f"(rejected by {actual}, expected {expected.stage})"
+            )
+        for expected in case.gate_unexercised:
+            lines.append(
+                f"    untested {expected.file}:{expected.line}  (never proposed, so the gate never saw it)"
+            )
         for finding in case.false_positives:
             lines.append(f"    false +  {finding.file}:{finding.line}  {finding.title}")
         lines.append("")
@@ -328,9 +391,11 @@ def render_report(report: EvalReport) -> str:
         f"false positives {report.false_positive_total} "
         f"({report.false_positive_rate:.2f} per expected finding)"
     )
-    if report.gate_held_total or report.gate_leaked_total:
+    if (report.gate_held_total or report.gate_leaked_total
+            or report.gate_unexercised_total or report.gate_wrong_stage_total):
         lines.append(
-            f"gate assertions {report.gate_held_total} held, {report.gate_leaked_total} leaked"
+            f"gate assertions {report.gate_held_total} held, {report.gate_leaked_total} leaked, "
+            f"{report.gate_wrong_stage_total} wrong stage, {report.gate_unexercised_total} untested"
         )
     return "\n".join(lines)
 
@@ -345,6 +410,11 @@ def report_to_dict(report: EvalReport) -> dict:
                 "missed": [f"{e.file}:{e.line}" for e in case.missed],
                 "gate_held": [f"{e.file}:{e.line}" for e in case.gate_held],
                 "gate_leaked": [f"{e.file}:{e.line}" for e in case.gate_leaked],
+                "gate_unexercised": [f"{e.file}:{e.line}" for e in case.gate_unexercised],
+                "gate_wrong_stage": [
+                    {"finding": f"{e.file}:{e.line}", "expected": e.stage, "actual": a}
+                    for e, a in case.gate_wrong_stage
+                ],
                 "false_positives": [
                     {"file": f.file, "line": f.line, "title": f.title} for f in case.false_positives
                 ],
@@ -360,4 +430,6 @@ def report_to_dict(report: EvalReport) -> dict:
         "false_positive_rate": round(report.false_positive_rate, 4),
         "gate_held_total": report.gate_held_total,
         "gate_leaked_total": report.gate_leaked_total,
+        "gate_unexercised_total": report.gate_unexercised_total,
+        "gate_wrong_stage_total": report.gate_wrong_stage_total,
     }

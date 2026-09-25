@@ -1,5 +1,7 @@
 {
   "name": "off-by-one in pagination",
+  "track": "recall",
+  "about": "An off-by-one in a pagination slice returns one extra item per page.",
   "diff": "diff --git a/pager.py b/pager.py\n--- a/pager.py\n+++ b/pager.py\n@@ -1,4 +1,4 @@\n def page_items(items, page, per_page):\n     start = page * per_page\n-    end = start + per_page\n+    end = start + per_page + 1\n     return items[start:end]\n",
   "head_sources": {
     "pager.py": "def page_items(items, page, per_page):\n    start = page * per_page\n    end = start + per_page + 1\n    return items[start:end]\n"

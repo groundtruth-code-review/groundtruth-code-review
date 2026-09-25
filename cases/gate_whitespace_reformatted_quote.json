@@ -1,0 +1,40 @@
+{
+  "name": "gate_whitespace_reformatted_quote",
+  "track": "pipeline",
+  "about": "The model quotes the line with its spacing collapsed. The quote check ignores whitespace, so an honest quote must not be rejected for an invisible difference.",
+  "diff": "diff --git a/cart.py b/cart.py\n--- a/cart.py\n+++ b/cart.py\n@@ -1,3 +1,3 @@\n def line_total(price, quantity, discount):\n     total = price * quantity\n-    return total * (1 - discount)\n+    return total - discount\n",
+  "head_sources": {
+    "cart.py": "def line_total(price, quantity, discount):\n    total = price * quantity\n    return total - discount\n"
+  },
+  "base_sources": {
+    "cart.py": "def line_total(price, quantity, discount):\n    total = price * quantity\n    return total * (1 - discount)\n"
+  },
+  "expected_findings": [
+    {
+      "file": "cart.py",
+      "line": 3,
+      "title_contains": "discount"
+    }
+  ],
+  "recorded": {
+    "review": {
+      "findings": [
+        {
+          "file": "cart.py",
+          "line": 3,
+          "category": "correctness",
+          "severity": "high",
+          "confidence": 0.9,
+          "title": "Discount is now subtracted as a flat amount",
+          "quoted_code": "return total-discount"
+        }
+      ]
+    },
+    "skeptic": {
+      "is_real": true,
+      "is_actionable": true,
+      "confidence": 0.9,
+      "reason": "confirmed by the evidence"
+    }
+  }
+}

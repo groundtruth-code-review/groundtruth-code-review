@@ -490,13 +490,50 @@ def _run_eval(args) -> int:
         print(f"error: no cases found in {args.cases}", file=sys.stderr)
         return 1
 
-    report = run_suite(cases, min_confidence=args.min_confidence)
+    clients: dict = {}
+    if args.live:
+        # Offline, every case replays a recorded answer, so a "catch" only
+        # proves the pipeline let a known-good finding through. Live, the
+        # recorded answers are thrown away and your configured models have
+        # to find the bug themselves -- which is the only thing that
+        # measures review quality rather than plumbing.
+        config = load_config(args.config)
+        if args.model:
+            config = replace(config, model=args.model)
+        if args.verify_model:
+            config = replace(config, verify_model=args.verify_model)
+        clients = {
+            "review_llm": LlmClient(model=config.review_model, api_base=config.llm_base_url),
+            "verify_llm": LlmClient(model=config.resolved_verify_model, api_base=config.llm_base_url),
+        }
+        # pipeline cases are built around a specific recorded mistake a live
+        # model will not reproduce, so they only make sense offline
+        cases = [c for c in cases if c.track == "recall"]
+        print(
+            f"live eval: {len(cases)} recall case(s), review={config.review_model}, "
+            f"verify={config.resolved_verify_model} -- this makes real, billed model calls",
+            file=sys.stderr,
+        )
+
+    report = run_suite(cases, min_confidence=args.min_confidence, **clients)
     print(json.dumps(report_to_dict(report), indent=2) if args.format == "json" else render_report(report))
 
     failures = []
     # A leak is a gate regression: a case asserted this finding must be
     # rejected and it reached the pull request instead. There is no
     # threshold to tune -- the case says it must not get through.
+    if report.gate_unexercised_total and not args.live:
+        # offline, every gate case replays a recorded proposal, so a finding
+        # that was never proposed means the case itself is malformed
+        failures.append(
+            f"{report.gate_unexercised_total} gate assertion(s) were never exercised -- "
+            "the recorded review does not propose them"
+        )
+    if report.gate_wrong_stage_total:
+        failures.append(
+            f"{report.gate_wrong_stage_total} gate assertion(s) were rejected by a different stage "
+            "than the case requires -- the right outcome for the wrong reason"
+        )
     if report.gate_leaked_total:
         failures.append(
             f"{report.gate_leaked_total} finding(s) leaked through the gate that a case "
@@ -572,6 +609,23 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="The gate threshold to replay against (default: 0.7).",
     )
     evaluate.add_argument("--format", choices=["json", "text"], default="text")
+    evaluate.add_argument(
+        "--live", action="store_true",
+        help=(
+            "Run the recall cases against real models instead of recorded answers. "
+            "Needs provider keys and makes billed calls."
+        ),
+    )
+    evaluate.add_argument(
+        "--config", type=Path, default=Path(".groundtruth.yml"),
+        help="Config to take models from in --live mode (default: ./.groundtruth.yml).",
+    )
+    evaluate.add_argument("--model", default=None, help="Override the review model for --live.")
+    evaluate.add_argument(
+        "--verify-model", default=None,
+        help="Override the verify model for --live -- e.g. to compare a same-provider "
+             "verifier against a cross-provider one on the same cases.",
+    )
 
     return parser
 

@@ -1,0 +1,40 @@
+{
+  "name": "recall_resource_leak",
+  "track": "recall",
+  "about": "A context manager is replaced by a bare open(), so the file handle is never closed.",
+  "diff": "diff --git a/settings.py b/settings.py\n--- a/settings.py\n+++ b/settings.py\n@@ -1,3 +1,3 @@\n def read_config(path):\n-    with open(path) as handle:\n-        return handle.read()\n+    handle = open(path)\n+    return handle.read()\n",
+  "head_sources": {
+    "settings.py": "def read_config(path):\n    handle = open(path)\n    return handle.read()\n"
+  },
+  "base_sources": {
+    "settings.py": "def read_config(path):\n    with open(path) as handle:\n        return handle.read()\n"
+  },
+  "expected_findings": [
+    {
+      "file": "settings.py",
+      "line": 2,
+      "title_contains": "close"
+    }
+  ],
+  "recorded": {
+    "review": {
+      "findings": [
+        {
+          "file": "settings.py",
+          "line": 2,
+          "category": "reliability",
+          "severity": "medium",
+          "confidence": 0.9,
+          "title": "File handle is never closed",
+          "quoted_code": "    handle = open(path)"
+        }
+      ]
+    },
+    "skeptic": {
+      "is_real": true,
+      "is_actionable": true,
+      "confidence": 0.9,
+      "reason": "confirmed by the evidence"
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "name": "gate_context_line_inside_hunk",
+  "track": "pipeline",
+  "about": "The consequence shows on an unchanged line inside the hunk. The platform accepts a comment there, so the location check must too -- being stricter would discard good findings.",
+  "diff": "diff --git a/net.py b/net.py\n--- a/net.py\n+++ b/net.py\n@@ -1,5 +1,5 @@\n def parse_port(value):\n     port = int(value)\n-    if port < 0 or port > 65535:\n+    if port < 0:\n         raise ValueError(value)\n     return port\n",
+  "head_sources": {
+    "net.py": "def parse_port(value):\n    port = int(value)\n    if port < 0:\n        raise ValueError(value)\n    return port\n"
+  },
+  "base_sources": {
+    "net.py": "def parse_port(value):\n    port = int(value)\n    if port < 0 or port > 65535:\n        raise ValueError(value)\n    return port\n"
+  },
+  "expected_findings": [
+    {
+      "file": "net.py",
+      "line": 5,
+      "title_contains": "65535"
+    }
+  ],
+  "recorded": {
+    "review": {
+      "findings": [
+        {
+          "file": "net.py",
+          "line": 5,
+          "category": "correctness",
+          "severity": "high",
+          "confidence": 0.9,
+          "title": "Ports above 65535 are now returned unvalidated",
+          "quoted_code": "    return port"
+        }
+      ]
+    },
+    "skeptic": {
+      "is_real": true,
+      "is_actionable": true,
+      "confidence": 0.9,
+      "reason": "confirmed by the evidence"
+    }
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "name": "gate_skeptic_rejects_invented_issue",
+  "track": "pipeline",
+  "about": "The reviewer claims a division by zero on a line that is guarded three lines above. The quote is real, so only the skeptic can stop it -- and it must.",
+  "diff": "diff --git a/money.py b/money.py\n--- a/money.py\n+++ b/money.py\n@@ -1,2 +1,8 @@\n def total(prices):\n     return sum(prices)\n+\n+\n+def average(prices):\n+    if not prices:\n+        return 0\n+    return total(prices) / len(prices)\n",
+  "head_sources": {
+    "money.py": "def total(prices):\n    return sum(prices)\n\n\ndef average(prices):\n    if not prices:\n        return 0\n    return total(prices) / len(prices)\n"
+  },
+  "base_sources": {
+    "money.py": "def total(prices):\n    return sum(prices)\n"
+  },
+  "expected_findings": [],
+  "recorded": {
+    "review": {
+      "findings": [
+        {
+          "file": "money.py",
+          "line": 8,
+          "category": "correctness",
+          "severity": "high",
+          "confidence": 0.9,
+          "title": "Division by zero when prices is empty",
+          "quoted_code": "    return total(prices) / len(prices)"
+        }
+      ]
+    },
+    "skeptic": {
+      "is_real": false,
+      "is_actionable": false,
+      "confidence": 0.1,
+      "reason": "the empty case returns before this line"
+    }
+  },
+  "expect_gated": [
+    {
+      "file": "money.py",
+      "line": 8,
+      "title_contains": "zero",
+      "stage": "low_confidence"
+    }
+  ]
+}

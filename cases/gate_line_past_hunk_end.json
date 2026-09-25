@@ -1,0 +1,42 @@
+{
+  "name": "gate_line_past_hunk_end",
+  "track": "pipeline",
+  "about": "The quote is the real changed line, but the reported line number is far outside the hunk. Nothing can be placed there, so it is dropped as a bad location rather than failing to post later.",
+  "diff": "diff --git a/etl.py b/etl.py\n--- a/etl.py\n+++ b/etl.py\n@@ -1,5 +1,5 @@\n def pipeline(data):\n-    data = normalize(data)\n+    data = normalise_fast(data)\n     step_0 = 0\n     step_1 = 1\n     step_2 = 2\n",
+  "head_sources": {
+    "etl.py": "def pipeline(data):\n    data = normalise_fast(data)\n    step_0 = 0\n    step_1 = 1\n    step_2 = 2\n    step_3 = 3\n    step_4 = 4\n    step_5 = 5\n    step_6 = 6\n    step_7 = 7\n    step_8 = 8\n    step_9 = 9\n    step_10 = 10\n    step_11 = 11\n    step_12 = 12\n    step_13 = 13\n    step_14 = 14\n    step_15 = 15\n    step_16 = 16\n    step_17 = 17\n    return data\n"
+  },
+  "base_sources": {
+    "etl.py": "def pipeline(data):\n    data = normalize(data)\n    step_0 = 0\n    step_1 = 1\n    step_2 = 2\n    step_3 = 3\n    step_4 = 4\n    step_5 = 5\n    step_6 = 6\n    step_7 = 7\n    step_8 = 8\n    step_9 = 9\n    step_10 = 10\n    step_11 = 11\n    step_12 = 12\n    step_13 = 13\n    step_14 = 14\n    step_15 = 15\n    step_16 = 16\n    step_17 = 17\n    return data\n"
+  },
+  "expected_findings": [],
+  "recorded": {
+    "review": {
+      "findings": [
+        {
+          "file": "etl.py",
+          "line": 18,
+          "category": "correctness",
+          "severity": "high",
+          "confidence": 0.9,
+          "title": "Renamed normalizer may skip validation",
+          "quoted_code": "    data = normalise_fast(data)"
+        }
+      ]
+    },
+    "skeptic": {
+      "is_real": true,
+      "is_actionable": true,
+      "confidence": 0.9,
+      "reason": "confirmed by the evidence"
+    }
+  },
+  "expect_gated": [
+    {
+      "file": "etl.py",
+      "line": 18,
+      "title_contains": "normal",
+      "stage": "bad_location"
+    }
+  ]
+}

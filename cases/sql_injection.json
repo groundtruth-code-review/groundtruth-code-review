@@ -1,5 +1,7 @@
 {
   "name": "parameterised query replaced by string concatenation",
+  "track": "recall",
+  "about": "A parameterised query is replaced with string concatenation.",
   "diff": "diff --git a/users.py b/users.py\n--- a/users.py\n+++ b/users.py\n@@ -1,3 +1,3 @@\n def find_user(cur, raw_id):\n-    cur.execute(\"select * from users where id = %s\", (raw_id,))\n+    cur.execute(\"select * from users where id = \" + raw_id)\n     return cur.fetchone()\n",
   "head_sources": {
     "users.py": "def find_user(cur, raw_id):\n    cur.execute(\"select * from users where id = \" + raw_id)\n    return cur.fetchone()\n"

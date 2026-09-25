@@ -1,0 +1,40 @@
+{
+  "name": "recall_swallowed_exception",
+  "track": "recall",
+  "about": "A payment failure is caught and turned into None, so callers can no longer tell a declined card from a successful charge.",
+  "diff": "diff --git a/payments.py b/payments.py\n--- a/payments.py\n+++ b/payments.py\n@@ -1,2 +1,5 @@\n def charge(card, amount):\n-    return gateway.charge(card, amount)\n+    try:\n+        return gateway.charge(card, amount)\n+    except Exception:\n+        return None\n",
+  "head_sources": {
+    "payments.py": "def charge(card, amount):\n    try:\n        return gateway.charge(card, amount)\n    except Exception:\n        return None\n"
+  },
+  "base_sources": {
+    "payments.py": "def charge(card, amount):\n    return gateway.charge(card, amount)\n"
+  },
+  "expected_findings": [
+    {
+      "file": "payments.py",
+      "line": 4,
+      "title_contains": "swallow"
+    }
+  ],
+  "recorded": {
+    "review": {
+      "findings": [
+        {
+          "file": "payments.py",
+          "line": 4,
+          "category": "reliability",
+          "severity": "high",
+          "confidence": 0.9,
+          "title": "Payment failures are silently swallowed",
+          "quoted_code": "    except Exception:"
+        }
+      ]
+    },
+    "skeptic": {
+      "is_real": true,
+      "is_actionable": true,
+      "confidence": 0.9,
+      "reason": "confirmed by the evidence"
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "name": "recall_missing_null_check",
+  "track": "recall",
+  "about": "A None guard is removed, so an anonymous user now raises instead of rendering as a guest.",
+  "diff": "diff --git a/profile.py b/profile.py\n--- a/profile.py\n+++ b/profile.py\n@@ -1,4 +1,2 @@\n def display_name(user):\n-    if user is None:\n-        return \"guest\"\n     return user.first_name + \" \" + user.last_name\n",
+  "head_sources": {
+    "profile.py": "def display_name(user):\n    return user.first_name + \" \" + user.last_name\n"
+  },
+  "base_sources": {
+    "profile.py": "def display_name(user):\n    if user is None:\n        return \"guest\"\n    return user.first_name + \" \" + user.last_name\n"
+  },
+  "expected_findings": [
+    {
+      "file": "profile.py",
+      "line": 2,
+      "title_contains": "none"
+    }
+  ],
+  "recorded": {
+    "review": {
+      "findings": [
+        {
+          "file": "profile.py",
+          "line": 2,
+          "category": "correctness",
+          "severity": "high",
+          "confidence": 0.9,
+          "title": "user can be None here and will raise AttributeError",
+          "quoted_code": "    return user.first_name + \" \" + user.last_name"
+        }
+      ]
+    },
+    "skeptic": {
+      "is_real": true,
+      "is_actionable": true,
+      "confidence": 0.9,
+      "reason": "confirmed by the evidence"
+    }
+  }
+}

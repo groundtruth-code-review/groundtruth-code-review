@@ -1,0 +1,54 @@
+{
+  "name": "gate_twin_findings_one_hunk",
+  "track": "pipeline",
+  "about": "Two distinct findings inside one hunk. Both must post: identity is built from the quoted code and the category, so neighbours in the same change cannot collapse into one.",
+  "diff": "diff --git a/ledger.py b/ledger.py\n--- a/ledger.py\n+++ b/ledger.py\n@@ -1,6 +1,3 @@\n def transfer(src, dst, amount):\n-    if amount <= 0:\n-        raise ValueError(amount)\n-    with LOCK:\n-        src.balance -= amount\n-        dst.balance += amount\n+    src.balance -= amount\n+    dst.balance += amount\n",
+  "head_sources": {
+    "ledger.py": "def transfer(src, dst, amount):\n    src.balance -= amount\n    dst.balance += amount\n"
+  },
+  "base_sources": {
+    "ledger.py": "def transfer(src, dst, amount):\n    if amount <= 0:\n        raise ValueError(amount)\n    with LOCK:\n        src.balance -= amount\n        dst.balance += amount\n"
+  },
+  "expected_findings": [
+    {
+      "file": "ledger.py",
+      "line": 2,
+      "title_contains": "positive"
+    },
+    {
+      "file": "ledger.py",
+      "line": 3,
+      "title_contains": "atomic"
+    }
+  ],
+  "recorded": {
+    "review": {
+      "findings": [
+        {
+          "file": "ledger.py",
+          "line": 2,
+          "category": "correctness",
+          "severity": "high",
+          "confidence": 0.9,
+          "title": "Amount is no longer checked to be positive",
+          "quoted_code": "    src.balance -= amount"
+        },
+        {
+          "file": "ledger.py",
+          "line": 3,
+          "category": "concurrency",
+          "severity": "high",
+          "confidence": 0.9,
+          "title": "Transfer is no longer atomic",
+          "quoted_code": "    dst.balance += amount"
+        }
+      ]
+    },
+    "skeptic": {
+      "is_real": true,
+      "is_actionable": true,
+      "confidence": 0.9,
+      "reason": "confirmed by the evidence"
+    }
+  }
+}
