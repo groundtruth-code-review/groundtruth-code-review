@@ -96,3 +96,43 @@ def test_summary_and_diff_budget_are_configurable(tmp_path):
     config = load_config(path)
     assert config.summary is False
     assert config.max_diff_tokens_per_call == 1200
+
+
+# --- verification can run on a different provider from review ------------
+
+def test_the_verifier_can_be_a_different_provider(tmp_path):
+    # the point of the skeptic pass is an independent second opinion; a
+    # different provider's model does not share the first model's blind spots
+    path = tmp_path / ".groundtruth.yml"
+    path.write_text(
+        "model: anthropic/claude-sonnet-5\n"
+        "verify_model: openai/gpt-4o-mini\n"
+    )
+    config = load_config(path)
+    assert config.review_model.startswith("anthropic/")
+    assert config.resolved_verify_model.startswith("openai/")
+
+
+def test_it_works_the_other_way_round_too(tmp_path):
+    path = tmp_path / ".groundtruth.yml"
+    path.write_text(
+        "model: openai/gpt-4o\n"
+        "verify_model: anthropic/claude-haiku-4-5-20251001\n"
+    )
+    config = load_config(path)
+    assert config.review_model.startswith("openai/")
+    assert config.resolved_verify_model.startswith("anthropic/")
+
+
+def test_three_providers_can_share_one_run(tmp_path):
+    path = tmp_path / ".groundtruth.yml"
+    path.write_text(
+        "model: openai/gpt-4o\n"
+        "verify_model: anthropic/claude-haiku-4-5-20251001\n"
+        "summary_model: ollama/qwen2.5-coder\n"
+    )
+    config = load_config(path)
+    providers = {m.split("/")[0] for m in (
+        config.review_model, config.resolved_verify_model, config.resolved_summary_model
+    )}
+    assert providers == {"openai", "anthropic", "ollama"}

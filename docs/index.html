@@ -431,8 +431,8 @@ Reviewed with `anthropic/claude-sonnet-5` &middot; estimated $0.0032.&lt;/sub&gt
     </div>
     <div class="feature-card">
       <div class="f-num">04</div>
-      <h4>Tier the model per stage</h4>
-      <p>A stronger model proposes; a cheap one verifies and summarizes. <code>verify_model</code> and <code>summary_model</code> default to whatever you set for <code>model</code> &mdash; splitting tiers is opt-in, never a silent switch.</p>
+      <h4>A second opinion from a different model</h4>
+      <p>Review with Claude and verify with GPT, or the other way round. A model is a poor judge of mistakes it would make itself, so the skeptic pass can run on a different provider entirely &mdash; one config line, <code>verify_model</code>.</p>
     </div>
     <div class="feature-card">
       <div class="f-num">05</div>
@@ -502,6 +502,7 @@ jobs:
 
   <div class="prose">
     <p class="why"><b>Why the reasoning gets the stronger tier:</b> a finding that was never proposed cannot be recovered downstream, while a finding that was proposed still has to get past the gate. Spend where the reasoning happens, not where the checking does.</p>
+    <p class="why"><b>Why the verifier can be a different provider:</b> the skeptic pass is only as independent as the model running it. Two calls to one model share the same training and the same blind spots, and a model asked to judge its own kind of output tends to agree with it. Propose with Claude and verify with GPT &mdash; or the reverse &mdash; and the second opinion comes from a model that learned differently, so it is less likely to share the first one's specific mistake. The verifier is never told which model proposed the finding.</p>
     <p>The cheap tier is safe in stage 5 because most of that stage is not a model call at all. The quote match, the location check, the fingerprint and the ranking are ordinary code &mdash; exact, free, and unaffected by which model is configured. Only the skeptic's judgement is a call, and its confidence multiplies, so an unsure verdict pulls a finding below the bar rather than waving it through.</p>
 
     <h2 id="choices">What it deliberately does not use</h2>

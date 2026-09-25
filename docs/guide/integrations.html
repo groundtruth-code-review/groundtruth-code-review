@@ -64,6 +64,12 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}</code></pre>
       </div>
+      <p>To verify with a different provider, set <code>verify_model</code> in <code>.groundtruth.yml</code> and pass both keys:</p>
+      <div class="code-box">
+        <pre><code>        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}</code></pre>
+      </div>
       <ul>
         <li><code>fetch-depth: 0</code> is required &mdash; the default shallow clone has no base commit to diff against.</li>
         <li><code>pull-requests: write</code> is required for the job's own <code>GITHUB_TOKEN</code> to post.</li>

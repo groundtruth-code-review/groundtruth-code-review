@@ -191,7 +191,7 @@ dimensions: [correctness, security, conventions]
           <thead><tr><th>Setting</th><th>Default</th><th>What it does</th></tr></thead>
           <tbody>
             <tr><td>model</td><td>anthropic/claude-sonnet-5</td><td>Any LiteLLM model string. The provider prefix decides which environment variable is read for the key.</td></tr>
-            <tr><td>verify_model</td><td>same as model</td><td>Model for the skeptic pass. A cheap tier is usually enough here.</td></tr>
+            <tr><td>verify_model</td><td>same as model</td><td>Model for the skeptic pass. Can be a different provider from <code>model</code> &mdash; and there is a good reason for it to be.</td></tr>
             <tr><td>summary_model</td><td>same as verify_model</td><td>Model for the summary call.</td></tr>
             <tr><td>llm_base_url</td><td>unset</td><td>Send every call to your own LiteLLM proxy instead of the provider. Unset calls the provider directly.</td></tr>
             <tr><td>max_cost_per_run</td><td>unset</td><td>Ceiling in USD for the whole run. Re-checked before the verification pass and again before the summary, because the number of those calls is not known until the review returns.</td></tr>
@@ -228,6 +228,21 @@ verify_model: anthropic/claude-haiku-4-5-20251001
 summary_model: anthropic/claude-haiku-4-5-20251001</code></pre>
       </div>
       <p>Both tiers default to whatever <code>model</code> is set to, so splitting them is something you opt into rather than something that happens to you on an upgrade.</p>
+
+      <h2>Verify with a different provider</h2>
+      <p>The tiers do not have to come from the same company. Review with Claude and verify with GPT, or the other way round &mdash; each stage reads its own model string, and LiteLLM picks the provider and the key from its prefix:</p>
+      <div class="code-box">
+        <pre><code># Claude proposes, GPT cross-examines
+model: anthropic/claude-sonnet-5
+verify_model: openai/gpt-4o-mini
+
+# or the other way round
+model: openai/gpt-4o
+verify_model: anthropic/claude-haiku-4-5-20251001</code></pre>
+      </div>
+      <p class="why"><b>Why this is worth doing:</b> the skeptic pass exists to be a second opinion, and a second opinion from the same model is not much of one. Two runs of one model share the same training, the same blind spots and the same habits of mind, and a model asked to judge its own kind of output is inclined to agree with it. A different provider's model was trained differently, so it is less likely to share the specific mistake the first one made. The verifier is never told which model proposed the finding, so the cross-examination is independent in fact, not just in name.</p>
+      <div class="callout"><b>You need both keys.</b> Each provider reads its own environment variable, so a Claude-plus-GPT run needs <code>ANTHROPIC_API_KEY</code> <i>and</i> <code>OPENAI_API_KEY</code> set. Miss one and every call to that provider fails &mdash; which the review now reports as a failed run rather than a clean one.</div>
+      <p>This is reasoning about why independence helps, not a measurement that it does on your code. The <code>eval</code> harness is how you find out: run your labeled cases once with a same-provider verifier and once with a cross-provider one, and compare the gated and leaked counts.</p>
 
       <h2>Flags that override the file</h2>
       <div class="tablewrap">
@@ -269,6 +284,12 @@ jobs:
         with: { model: anthropic/claude-sonnet-5 }
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}</code></pre>
+      </div>
+      <p>To verify with a different provider, set <code>verify_model</code> in <code>.groundtruth.yml</code> and pass both keys:</p>
+      <div class="code-box">
+        <pre><code>        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}</code></pre>
       </div>
       <ul>
         <li><code>fetch-depth: 0</code> is required &mdash; the default shallow clone has no base commit to diff against.</li>
@@ -512,6 +533,9 @@ PAGES["faq"] = (
 
       <h2>Which model should I use?</h2>
       <p>Start with one strong model everywhere, then split the tiers once you see the bill: a strong model on stage 4 where the reasoning happens, a cheap one on stages 5 and 6. A finding that was never proposed cannot be recovered downstream, while a finding that was proposed still has to get past the gate.</p>
+
+      <h2>Should the verifier be a different model from the reviewer?</h2>
+      <p>If you can, yes &mdash; ideally from a different provider. Review with Claude and verify with GPT, or the reverse. The verifier's whole job is to doubt the first model, and a model is a poor judge of mistakes it would make itself. Nothing in the code prefers one arrangement; each stage takes its own model string. See <a href="configuration.html">verify with a different provider</a>, and note that it needs both providers' keys.</p>
 
       <h2>How mature is this?</h2>
       <p>Honestly: alpha. The pipeline, the CLI, the eval harness and three platform adapters are implemented and covered by 190 tests that run offline against fake model clients, plus labeled cases replayed on every build. What that does <i>not</i> prove is behaviour against a live model on your codebase at scale &mdash; no test can. Start it on one repository, read what it posts, and tune <code>min_confidence</code> before you turn it on everywhere.</p>

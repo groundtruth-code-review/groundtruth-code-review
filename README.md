@@ -274,13 +274,28 @@ max_diff_tokens_per_call: 6000     # a bigger file is reviewed in hunk groups
 summary: true                      # one cheap call to group the findings
 dimensions: [correctness, security, conventions]
 
-# Optional: a cheaper model for the checking stages. Unset means every stage
-# uses `model` above — splitting the tiers is something you opt into.
+# Optional: a different model for the checking stages. Unset means every
+# stage uses `model` above — splitting them is something you opt into.
 # verify_model: anthropic/claude-haiku-4-5-20251001
 # summary_model: anthropic/claude-haiku-4-5-20251001
 
+# The verifier can be a different provider entirely. Claude proposes and GPT
+# cross-examines, or the other way round — set both providers' keys.
+# verify_model: openai/gpt-4o-mini
+
 # llm_base_url: https://litellm.your-org.internal   # org mode — see docs
 ```
+
+**Verify with a different provider.** The skeptic pass exists to be a second
+opinion, and a second opinion from the same model isn't much of one — two
+calls to one model share its training and its blind spots, and a model
+judging its own kind of output tends to agree with it. So `verify_model` can
+name a different provider from `model`: review with Claude and verify with
+GPT, or the reverse. The verifier is never told which model proposed the
+finding. It needs both providers' keys in the environment; miss one and the
+run reports itself as failed rather than clean. Whether it helps on your
+code is something the `eval` harness can tell you — run your cases both ways
+and compare.
 
 `max_cost_per_run` covers the whole run, not just the review pass: the
 ceiling is re-checked before the verification pass (one call per candidate)

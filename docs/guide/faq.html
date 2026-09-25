@@ -76,6 +76,9 @@
       <h2>Which model should I use?</h2>
       <p>Start with one strong model everywhere, then split the tiers once you see the bill: a strong model on stage 4 where the reasoning happens, a cheap one on stages 5 and 6. A finding that was never proposed cannot be recovered downstream, while a finding that was proposed still has to get past the gate.</p>
 
+      <h2>Should the verifier be a different model from the reviewer?</h2>
+      <p>If you can, yes &mdash; ideally from a different provider. Review with Claude and verify with GPT, or the reverse. The verifier's whole job is to doubt the first model, and a model is a poor judge of mistakes it would make itself. Nothing in the code prefers one arrangement; each stage takes its own model string. See <a href="configuration.html">verify with a different provider</a>, and note that it needs both providers' keys.</p>
+
       <h2>How mature is this?</h2>
       <p>Honestly: alpha. The pipeline, the CLI, the eval harness and three platform adapters are implemented and covered by 190 tests that run offline against fake model clients, plus labeled cases replayed on every build. What that does <i>not</i> prove is behaviour against a live model on your codebase at scale &mdash; no test can. Start it on one repository, read what it posts, and tune <code>min_confidence</code> before you turn it on everywhere.</p>
 

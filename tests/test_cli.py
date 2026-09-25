@@ -572,3 +572,25 @@ def test_a_summary_over_the_ceiling_is_skipped_not_fatal(repo):
     assert outcome.summary is None             # only the summary is given up
     assert llm.summary_calls == 0
     assert "summary skipped" in outcome.message
+
+
+def test_each_role_is_built_with_its_own_model(repo, monkeypatch):
+    # a cross-provider config only means something if the verifier really is
+    # a separate client; this fails if every role ever collapses onto `model`
+    import groundtruth.cli as cli_module
+
+    built = []
+
+    class RecordingClient(FakeLlm):
+        def __init__(self, model, api_base=None, **kwargs):
+            super().__init__(review_response={"findings": [FINDING]})
+            built.append(model)
+
+    monkeypatch.setattr(cli_module, "LlmClient", RecordingClient)
+    repo_path, base_sha = repo
+    config = Config(model="anthropic/claude-sonnet-5", verify_model="openai/gpt-4o-mini")
+    run_review(repo_path, base=base_sha, head="HEAD", config=config)
+
+    assert built[0] == "anthropic/claude-sonnet-5"   # review
+    assert built[1] == "openai/gpt-4o-mini"          # verify
+    assert built[2] == "openai/gpt-4o-mini"          # summary follows verify

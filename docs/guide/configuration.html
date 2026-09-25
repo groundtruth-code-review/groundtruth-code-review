@@ -79,7 +79,7 @@ dimensions: [correctness, security, conventions]
           <thead><tr><th>Setting</th><th>Default</th><th>What it does</th></tr></thead>
           <tbody>
             <tr><td>model</td><td>anthropic/claude-sonnet-5</td><td>Any LiteLLM model string. The provider prefix decides which environment variable is read for the key.</td></tr>
-            <tr><td>verify_model</td><td>same as model</td><td>Model for the skeptic pass. A cheap tier is usually enough here.</td></tr>
+            <tr><td>verify_model</td><td>same as model</td><td>Model for the skeptic pass. Can be a different provider from <code>model</code> &mdash; and there is a good reason for it to be.</td></tr>
             <tr><td>summary_model</td><td>same as verify_model</td><td>Model for the summary call.</td></tr>
             <tr><td>llm_base_url</td><td>unset</td><td>Send every call to your own LiteLLM proxy instead of the provider. Unset calls the provider directly.</td></tr>
             <tr><td>max_cost_per_run</td><td>unset</td><td>Ceiling in USD for the whole run. Re-checked before the verification pass and again before the summary, because the number of those calls is not known until the review returns.</td></tr>
@@ -116,6 +116,21 @@ verify_model: anthropic/claude-haiku-4-5-20251001
 summary_model: anthropic/claude-haiku-4-5-20251001</code></pre>
       </div>
       <p>Both tiers default to whatever <code>model</code> is set to, so splitting them is something you opt into rather than something that happens to you on an upgrade.</p>
+
+      <h2>Verify with a different provider</h2>
+      <p>The tiers do not have to come from the same company. Review with Claude and verify with GPT, or the other way round &mdash; each stage reads its own model string, and LiteLLM picks the provider and the key from its prefix:</p>
+      <div class="code-box">
+        <pre><code># Claude proposes, GPT cross-examines
+model: anthropic/claude-sonnet-5
+verify_model: openai/gpt-4o-mini
+
+# or the other way round
+model: openai/gpt-4o
+verify_model: anthropic/claude-haiku-4-5-20251001</code></pre>
+      </div>
+      <p class="why"><b>Why this is worth doing:</b> the skeptic pass exists to be a second opinion, and a second opinion from the same model is not much of one. Two runs of one model share the same training, the same blind spots and the same habits of mind, and a model asked to judge its own kind of output is inclined to agree with it. A different provider's model was trained differently, so it is less likely to share the specific mistake the first one made. The verifier is never told which model proposed the finding, so the cross-examination is independent in fact, not just in name.</p>
+      <div class="callout"><b>You need both keys.</b> Each provider reads its own environment variable, so a Claude-plus-GPT run needs <code>ANTHROPIC_API_KEY</code> <i>and</i> <code>OPENAI_API_KEY</code> set. Miss one and every call to that provider fails &mdash; which the review now reports as a failed run rather than a clean one.</div>
+      <p>This is reasoning about why independence helps, not a measurement that it does on your code. The <code>eval</code> harness is how you find out: run your labeled cases once with a same-provider verifier and once with a cross-provider one, and compare the gated and leaked counts.</p>
 
       <h2>Flags that override the file</h2>
       <div class="tablewrap">
