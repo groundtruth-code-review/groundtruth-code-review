@@ -166,5 +166,9 @@ findings. That is what makes "any platform, any model" true rather than a slogan
 ## Status
 
 All seven stages work today on GitHub, GitLab and Bitbucket Cloud, covered by
-186 tests that run offline against fake model clients. A self-hosted server
-mode for Bitbucket Data Center is the remaining module.
+286 tests that run offline against fake model clients. A self-hosted server
+mode for Bitbucket Data Center is the remaining module — see
+[server-mode-design.md](server-mode-design.md) for the scoped, not-yet-built
+design, which also covers the gap this document's own "what it deliberately
+does not use" table names: no database, so no review history outlives one
+pull request.
