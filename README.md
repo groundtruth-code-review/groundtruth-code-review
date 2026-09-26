@@ -282,7 +282,19 @@ dimensions: [correctness, security, conventions]
 # The verifier can be a different provider entirely. Claude proposes and GPT
 # cross-examines, or the other way round — set both providers' keys.
 # verify_model: openai/gpt-4o-mini
+
+# Optional: sampling settings, per model — temperature, top_p, max_tokens.
+# Mostly for reasoning models, which often want temperature 1 and a larger
+# token budget because they think before they answer.
+# model_params: {temperature: 1, top_p: 1, max_tokens: 16384}
+# verify_model_params: {temperature: 0.1, max_tokens: 2048}
 ```
+
+Settings follow the model they were tuned for: a stage inherits them only
+when it runs the same model. `stream` isn't supported — every reply is
+parsed as one JSON object, so it has to arrive whole. Only those three
+settings are accepted, within bounds, because the pull request under review
+can edit this file.
 
 ### Endpoints
 

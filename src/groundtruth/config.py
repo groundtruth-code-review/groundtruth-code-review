@@ -50,6 +50,48 @@ class ConfigError(ValueError):
     pass
 
 
+# Sampling settings a stage may set. An allowlist, not a pass-through: this
+# file can be edited by the pull request under review, so an open mapping
+# would let it smuggle api_base or extra headers through as "parameters".
+# Each is bounded for the same reason -- a PR must not be able to make
+# every call on your key enormous.
+_PARAM_BOUNDS = {
+    "temperature": (0.0, 2.0),
+    "top_p": (0.0, 1.0),
+    "max_tokens": (1, 65_536),
+}
+
+
+def _validate_params(params: object, key: str, source: str) -> dict:
+    if params is None:
+        return {}
+    if not isinstance(params, dict):
+        raise ConfigError(
+            f"'{key}' in {source} must be a mapping, e.g. {{temperature: 1, max_tokens: 16384}}"
+        )
+
+    clean = {}
+    for name, value in params.items():
+        if name == "stream":
+            raise ConfigError(
+                f"'stream' in {key} ({source}) is not supported. The review has to read the whole "
+                "reply to check its JSON, so a streamed reply cannot be used -- and in CI nobody "
+                "is watching the tokens arrive. Remove it; every call is made unstreamed."
+            )
+        if name not in _PARAM_BOUNDS:
+            allowed = ", ".join(sorted(_PARAM_BOUNDS))
+            raise ConfigError(f"'{name}' in {key} ({source}) is not a supported setting. Allowed: {allowed}.")
+        low, high = _PARAM_BOUNDS[name]
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ConfigError(f"'{name}' in {key} ({source}) must be a number, not {value!r}")
+        if name == "max_tokens" and not float(value).is_integer():
+            raise ConfigError(f"'max_tokens' in {key} ({source}) must be a whole number, not {value!r}")
+        if not low <= value <= high:
+            raise ConfigError(f"'{name}' in {key} ({source}) must be between {low} and {high}, not {value}")
+        clean[name] = int(value) if name == "max_tokens" else float(value)
+    return clean
+
+
 def normalize_base_url(url: str | None) -> str | None:
     """Trim whitespace and a trailing slash, and treat empty as unset.
 
@@ -76,6 +118,11 @@ class Config:
     llm_base_url: str | None = None
     verify_base_url: str | None = None
     summary_base_url: str | None = None
+    # Sampling settings, per stage. Unlike endpoints these may live in the
+    # file -- they change how a model answers, not where your key goes.
+    model_params: dict = field(default_factory=dict)
+    verify_model_params: dict | None = None
+    summary_model_params: dict | None = None
     max_cost_per_run: float | None = None
     min_confidence: float = 0.7
     max_inline_comments: int = 10
@@ -124,6 +171,29 @@ class Config:
         if self.summary_model:
             return self.llm_base_url
         return self.resolved_verify_base_url
+
+
+    # Sampling settings belong to one model, so -- unlike endpoints, which
+    # have a shared default because one proxy can serve every model -- they
+    # are inherited only when the model itself is. Settings tuned for a
+    # reasoning model (temperature 1, a large token budget) must not follow
+    # a verifier that names a different model.
+
+    @property
+    def review_params(self) -> dict:
+        return dict(self.model_params)
+
+    @property
+    def resolved_verify_params(self) -> dict:
+        if self.verify_model_params is not None:
+            return dict(self.verify_model_params)
+        return self.review_params if self.verify_model is None else {}
+
+    @property
+    def resolved_summary_params(self) -> dict:
+        if self.summary_model_params is not None:
+            return dict(self.summary_model_params)
+        return self.resolved_verify_params if self.summary_model is None else {}
 
 
 def endpoints_from_env(config: Config) -> Config:
@@ -189,5 +259,14 @@ def load_config(path: Path | str | None) -> Config:
         max_diff_tokens_per_call=raw.get("max_diff_tokens_per_call", defaults.max_diff_tokens_per_call),
         summary=raw.get("summary", defaults.summary),
         dimensions=raw.get("dimensions", list(_DEFAULT_DIMENSIONS)),
+        model_params=_validate_params(raw.get("model_params"), "model_params", str(path)),
+        verify_model_params=(
+            _validate_params(raw["verify_model_params"], "verify_model_params", str(path))
+            if "verify_model_params" in raw else None
+        ),
+        summary_model_params=(
+            _validate_params(raw["summary_model_params"], "summary_model_params", str(path))
+            if "summary_model_params" in raw else None
+        ),
     )
     return endpoints_from_env(config)

@@ -45,6 +45,7 @@ class LlmClient:
         api_base: str | None = None,
         api_key: str | None = None,
         max_output_tokens: int = 4096,
+        params: dict | None = None,
     ):
         """`api_base` left unset calls the provider directly. Set it to a
         self-hosted LiteLLM proxy URL for org mode (spend caps, audit log,
@@ -57,11 +58,18 @@ class LlmClient:
         which is a worse failure than a clearly-too-small ceiling. 4096 is
         generous for one file's worth of findings (the normal case now that
         review calls are batched per file, not per whole diff).
+
+        `params` carries a stage's sampling settings from config --
+        temperature, top_p, max_tokens -- already validated there. Reasoning
+        models are the usual reason to set them: many expect temperature 1,
+        and they spend part of max_tokens thinking before they answer, so a
+        budget sized for a plain model can run out mid-JSON.
         """
         self.model = model
         self.api_base = api_base
         self.api_key = api_key
         self.max_output_tokens = max_output_tokens
+        self.params = dict(params or {})
 
     def complete_json(self, system: str, user: str, timeout: float = 120.0) -> dict:
         """One call, JSON in, JSON out. Raises on a genuinely broken response
@@ -76,11 +84,17 @@ class LlmClient:
         kwargs: dict = {
             "model": self.model,
             "messages": messages,
-            "temperature": 0.1,
+            # Low by default: the same diff should get the same review.
+            "temperature": self.params.get("temperature", 0.1),
             "timeout": timeout,
-            "max_tokens": self.max_output_tokens,
+            "max_tokens": self.params.get("max_tokens", self.max_output_tokens),
+            # Never streamed. The reply is parsed as one JSON object, so it
+            # has to arrive whole; config rejects stream for the same reason.
+            "stream": False,
             "drop_params": True,  # silently drop params a given provider can't take
         }
+        if "top_p" in self.params:
+            kwargs["top_p"] = self.params["top_p"]
         if self.api_base:
             kwargs["api_base"] = self.api_base
         if self.api_key:

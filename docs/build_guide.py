@@ -180,6 +180,10 @@ dimensions: [correctness, security, conventions]
 # verify_model: anthropic/claude-haiku-4-5-20251001
 # summary_model: anthropic/claude-haiku-4-5-20251001
 
+# Optional: sampling settings, per model. See "Sampling settings" below.
+# model_params: {temperature: 1, top_p: 1, max_tokens: 16384}
+# verify_model_params: {temperature: 0.1, max_tokens: 2048}
+
 # Endpoints are NOT set here -- see "Endpoints" below.</code></pre>
       </div>
 
@@ -191,6 +195,9 @@ dimensions: [correctness, security, conventions]
             <tr><td>model</td><td>anthropic/claude-sonnet-5</td><td>Any LiteLLM model string. The provider prefix decides which environment variable is read for the key.</td></tr>
             <tr><td>verify_model</td><td>same as model</td><td>Model for the skeptic pass. Can be a different provider from <code>model</code> &mdash; and there is a good reason for it to be.</td></tr>
             <tr><td>summary_model</td><td>same as verify_model</td><td>Model for the summary call.</td></tr>
+            <tr><td>model_params</td><td>temperature 0.1, max_tokens 4096</td><td>Sampling settings for <code>model</code>: <code>temperature</code>, <code>top_p</code>, <code>max_tokens</code>.</td></tr>
+            <tr><td>verify_model_params</td><td>follows its model</td><td>Settings for the verify model. Inherited from <code>model_params</code> only when the verifier runs the same model.</td></tr>
+            <tr><td>summary_model_params</td><td>follows its model</td><td>Settings for the summary model, inherited the same way.</td></tr>
             <tr><td>max_cost_per_run</td><td>unset</td><td>Ceiling in USD for the whole run. Re-checked before the verification pass and again before the summary, because the number of those calls is not known until the review returns.</td></tr>
             <tr><td>min_confidence</td><td>0.7</td><td>Combined confidence (reviewer &times; skeptic) a finding must reach to post.</td></tr>
             <tr><td>max_inline_comments</td><td>10</td><td>How many findings can post. Survivors are ranked by severity &times; confidence and the rest are cut.</td></tr>
@@ -250,6 +257,21 @@ groundtruth eval --live --model anthropic/claude-sonnet-5 \
   --verify-model openai/gpt-4o-mini</code></pre>
       </div>
       <p>Compare the catch rate and the false positives. These are real, billed calls, and a handful of cases will not settle the question on their own &mdash; but it is a measurement rather than an argument.</p>
+
+      <h2>Sampling settings</h2>
+      <p>Each model can have its own <code>temperature</code>, <code>top_p</code> and <code>max_tokens</code>. Most setups never need them &mdash; the defaults are a low temperature, so the same diff gets the same review, and 4096 output tokens. The usual reason to change them is a <b>reasoning model</b>: many expect <code>temperature: 1</code>, and they spend part of <code>max_tokens</code> thinking before they answer, so a budget sized for a plain model can run out halfway through the JSON.</p>
+      <div class="code-box">
+        <pre><code>model: nvidia_nim/moonshotai/kimi-k3
+model_params: {temperature: 1, top_p: 1, max_tokens: 16384}
+
+verify_model: nvidia_nim/z-ai/glm-5.3-flash
+verify_model_params: {temperature: 0.1, max_tokens: 2048}</code></pre>
+      </div>
+      <p>Settings belong to the model they were tuned for. A stage inherits them only when it runs the same model &mdash; so if the verifier names a different model, it does not pick up the reviewer's <code>temperature: 1</code>.</p>
+      <ul>
+        <li><b><code>stream</code> is not supported.</b> The review has to read the whole reply to check its JSON, so a streamed reply cannot be used, and in CI nobody is watching the tokens arrive. The file refuses to load if it is set.</li>
+        <li><b>Only these three settings are accepted, within bounds</b> &mdash; <code>temperature</code> 0&ndash;2, <code>top_p</code> 0&ndash;1, <code>max_tokens</code> 1&ndash;65,536. This file can be edited by the pull request under review, so an open list would let it pass <code>api_base</code> off as a setting, and an unbounded <code>max_tokens</code> would let it make every call on your key enormous.</li>
+      </ul>
 
       <h2>Endpoints</h2>
       <p>By default each model is called at its provider's own endpoint. To send a stage somewhere else &mdash; NVIDIA's API catalog, Azure, a model on your own GPUs, or your org's LiteLLM proxy &mdash; set its endpoint in the environment or on the command line:</p>
@@ -530,6 +552,9 @@ PAGES["troubleshooting"] = (
 
       <h2>&ldquo;would set where your API key is sent&rdquo;</h2>
       <p>A <code>ConfigError</code>: <code>.groundtruth.yml</code> names an endpoint (<code>llm_base_url</code>, <code>base_url</code>, <code>api_base</code>, or a per-stage one). Endpoints are refused in that file because the pull request under review can edit it. Move the value to <code>GROUNDTRUTH_BASE_URL</code> in the environment or <code>--base-url</code> on the command line. See <a href="configuration.html">configuration</a> for why.</p>
+
+      <h2>Review calls fail with a reasoning model</h2>
+      <p>The run reports failed calls, but the key and endpoint are right. Reasoning models spend part of <code>max_tokens</code> thinking, so the default 4096 can run out before the JSON is finished &mdash; and a reply cut off mid-object cannot be parsed. Raise it in <code>model_params</code>, and set <code>temperature: 1</code> if the model's own documentation asks for it. See <a href="configuration.html">sampling settings</a>.</p>
 
       <h2>Authentication fails against NVIDIA's endpoint</h2>
       <p>Two usual causes. The key variable is <code>NVIDIA_NIM_API_KEY</code>, not <code>OPENAI_API_KEY</code>, even though the endpoint speaks the OpenAI protocol. And the base URL must be exactly <code>https://integrate.api.nvidia.com/v1</code> &mdash; LiteLLM recognizes it by exact string. Groundtruth trims a trailing slash for you, but a different path will fall back to generic OpenAI handling and read the wrong key.</p>

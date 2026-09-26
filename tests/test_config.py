@@ -231,3 +231,82 @@ def test_each_variable_sets_its_own_stage(monkeypatch):
     c = load_config(None)
     assert (c.review_base_url, c.resolved_verify_base_url, c.resolved_summary_base_url) == (
         "https://a", "https://b", "https://c")
+
+
+# --- per-model sampling settings ------------------------------------------
+
+def _cfg(tmp_path, text):
+    path = tmp_path / ".groundtruth.yml"
+    path.write_text(text)
+    return load_config(path)
+
+
+def test_sampling_settings_are_read_per_stage(tmp_path):
+    c = _cfg(tmp_path,
+             "model: nvidia_nim/moonshotai/kimi-k3\n"
+             "model_params: {temperature: 1, top_p: 1, max_tokens: 16384}\n"
+             "verify_model: nvidia_nim/z-ai/glm-5.3-flash\n"
+             "verify_model_params: {temperature: 0.1, max_tokens: 2048}\n")
+    assert c.review_params == {"temperature": 1.0, "top_p": 1.0, "max_tokens": 16384}
+    assert c.resolved_verify_params == {"temperature": 0.1, "max_tokens": 2048}
+
+
+def test_stream_is_refused_with_the_reason(tmp_path):
+    # the reply is parsed as one JSON object, so it has to arrive whole
+    with pytest.raises(ConfigError) as exc:
+        _cfg(tmp_path, "model_params: {temperature: 1, stream: false}\n")
+    assert "stream" in str(exc.value)
+    assert "whole" in str(exc.value)
+
+
+@pytest.mark.parametrize("smuggled", ["api_base", "api_key", "extra_headers", "base_url"])
+def test_only_allowlisted_settings_pass(tmp_path, smuggled):
+    # the pull request can edit this file; an open mapping would let it route
+    # the key somewhere else by calling it a "parameter"
+    with pytest.raises(ConfigError) as exc:
+        _cfg(tmp_path, f"model_params: {{{smuggled}: https://attacker.example}}\n")
+    assert "not a supported setting" in str(exc.value)
+
+
+@pytest.mark.parametrize("bad", [
+    "{temperature: 3}",
+    "{top_p: 1.5}",
+    "{max_tokens: 0}",
+    "{max_tokens: 1000000}",
+    "{max_tokens: 12.5}",
+    "{temperature: hot}",
+    "{temperature: true}",
+])
+def test_settings_outside_their_bounds_are_refused(tmp_path, bad):
+    with pytest.raises(ConfigError):
+        _cfg(tmp_path, f"model_params: {bad}\n")
+
+
+def test_a_non_mapping_is_refused(tmp_path):
+    with pytest.raises(ConfigError):
+        _cfg(tmp_path, "model_params: [1, 2]\n")
+
+
+def test_settings_follow_the_model_they_were_tuned_for():
+    # verify runs the same model as review, so it gets the same settings --
+    # a reasoning model that needs temperature 1 needs it in both stages
+    c = Config(model="nvidia_nim/moonshotai/kimi-k3", model_params={"temperature": 1.0})
+    assert c.resolved_verify_params == {"temperature": 1.0}
+    assert c.resolved_summary_params == {"temperature": 1.0}
+
+
+def test_settings_do_not_follow_a_different_model():
+    # tuned for the reviewer, so they must not be applied to a verifier that
+    # names a different model
+    c = Config(model="nvidia_nim/moonshotai/kimi-k3", model_params={"temperature": 1.0},
+               verify_model="nvidia_nim/z-ai/glm-5.3-flash")
+    assert c.resolved_verify_params == {}
+
+
+def test_the_summary_inherits_the_verifiers_settings_with_its_model():
+    c = Config(model="a/x", verify_model="b/y", verify_model_params={"max_tokens": 2048})
+    assert c.resolved_summary_params == {"max_tokens": 2048}
+
+
+def test_no_settings_means_the_defaults():
+    assert Config().review_params == {}

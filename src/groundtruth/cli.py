@@ -266,12 +266,18 @@ def run_review(
     # One injected client stands in for every role (tests, mainly). Left
     # unset, each role gets its own: the tiers are config, and unset tier
     # settings resolve back to the one `model` the user named.
-    review_llm = llm or LlmClient(model=config.review_model, api_base=config.review_base_url)
+    review_llm = llm or LlmClient(
+        model=config.review_model, api_base=config.review_base_url, params=config.review_params
+    )
     verify_llm = llm or LlmClient(
-        model=config.resolved_verify_model, api_base=config.resolved_verify_base_url
+        model=config.resolved_verify_model,
+        api_base=config.resolved_verify_base_url,
+        params=config.resolved_verify_params,
     )
     summary_llm = llm or LlmClient(
-        model=config.resolved_summary_model, api_base=config.resolved_summary_base_url
+        model=config.resolved_summary_model,
+        api_base=config.resolved_summary_base_url,
+        params=config.resolved_summary_params,
     )
 
     review_estimate = _estimate_batched_cost(diffmap, ctx.blocks, review_llm, config.dimensions)
@@ -540,9 +546,13 @@ def _run_eval(args) -> int:
             config = replace(config, verify_model=args.verify_model)
         config = _apply_endpoint_flags(config, args)
         clients = {
-            "review_llm": LlmClient(model=config.review_model, api_base=config.review_base_url),
+            "review_llm": LlmClient(
+                model=config.review_model, api_base=config.review_base_url, params=config.review_params
+            ),
             "verify_llm": LlmClient(
-                model=config.resolved_verify_model, api_base=config.resolved_verify_base_url
+                model=config.resolved_verify_model,
+                api_base=config.resolved_verify_base_url,
+                params=config.resolved_verify_params,
             ),
         }
         # pipeline cases are built around a specific recorded mistake a live

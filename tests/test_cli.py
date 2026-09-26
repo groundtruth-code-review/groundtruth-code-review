@@ -633,3 +633,26 @@ def test_a_cli_flag_overrides_the_environment(monkeypatch):
 def load_config_for_test():
     from groundtruth.config import load_config
     return load_config(None)
+
+
+def test_each_client_gets_the_settings_for_its_own_model(repo, monkeypatch):
+    import groundtruth.cli as cli_module
+
+    built = []
+
+    class RecordingClient(FakeLlm):
+        def __init__(self, model, api_base=None, params=None, **kwargs):
+            super().__init__(review_response={"findings": [FINDING]})
+            built.append((model, params))
+
+    monkeypatch.setattr(cli_module, "LlmClient", RecordingClient)
+    repo_path, base_sha = repo
+    config = Config(model="nvidia_nim/moonshotai/kimi-k3",
+                    model_params={"temperature": 1.0, "max_tokens": 16384},
+                    verify_model="nvidia_nim/z-ai/glm-5.3-flash",
+                    verify_model_params={"max_tokens": 2048})
+    run_review(repo_path, base=base_sha, head="HEAD", config=config)
+
+    assert built[0] == ("nvidia_nim/moonshotai/kimi-k3", {"temperature": 1.0, "max_tokens": 16384})
+    assert built[1] == ("nvidia_nim/z-ai/glm-5.3-flash", {"max_tokens": 2048})
+    assert built[2] == ("nvidia_nim/z-ai/glm-5.3-flash", {"max_tokens": 2048})

@@ -80,6 +80,9 @@
       <h2>&ldquo;would set where your API key is sent&rdquo;</h2>
       <p>A <code>ConfigError</code>: <code>.groundtruth.yml</code> names an endpoint (<code>llm_base_url</code>, <code>base_url</code>, <code>api_base</code>, or a per-stage one). Endpoints are refused in that file because the pull request under review can edit it. Move the value to <code>GROUNDTRUTH_BASE_URL</code> in the environment or <code>--base-url</code> on the command line. See <a href="configuration.html">configuration</a> for why.</p>
 
+      <h2>Review calls fail with a reasoning model</h2>
+      <p>The run reports failed calls, but the key and endpoint are right. Reasoning models spend part of <code>max_tokens</code> thinking, so the default 4096 can run out before the JSON is finished &mdash; and a reply cut off mid-object cannot be parsed. Raise it in <code>model_params</code>, and set <code>temperature: 1</code> if the model's own documentation asks for it. See <a href="configuration.html">sampling settings</a>.</p>
+
       <h2>Authentication fails against NVIDIA's endpoint</h2>
       <p>Two usual causes. The key variable is <code>NVIDIA_NIM_API_KEY</code>, not <code>OPENAI_API_KEY</code>, even though the endpoint speaks the OpenAI protocol. And the base URL must be exactly <code>https://integrate.api.nvidia.com/v1</code> &mdash; LiteLLM recognizes it by exact string. Groundtruth trims a trailing slash for you, but a different path will fall back to generic OpenAI handling and read the wrong key.</p>
 
