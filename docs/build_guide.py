@@ -54,8 +54,8 @@ SHELL = """<!doctype html>
   <div class="topbar-inner">
     <span class="brand"><a href="../index.html" style="color:inherit;text-decoration:none">Groundtruth</a></span>
     <span class="topnav">
-      <a href="../index.html#why">Why</a>
       <a href="../index.html#stages">How it works</a>
+      <a href="../index.html#why">Why</a>
       <a href="getting-started.html">Docs</a>
       <a href="{repo}">GitHub</a>
     </span>

@@ -18,8 +18,8 @@
   <div class="topbar-inner">
     <span class="brand">Groundtruth</span>
     <span class="topnav">
-      <a href="#why">Why</a>
       <a href="#stages">How it works</a>
+      <a href="#why">Why</a>
       <a href="#features">Features</a>
       <a href="#quickstart">Get started</a>
       <a href="guide/getting-started.html">Docs</a>
@@ -68,32 +68,6 @@
       </div>
     </div>
   </section>
-
-  <div class="prose">
-    <h2 id="why">Why precision, not coverage</h2>
-    <p>Most AI reviewers optimize for coverage &mdash; say something about every changed line. Reviewers learn to tune that out fast, and the first time a bot invents a bug that isn't there, every real finding after it gets the same skeptical read. Groundtruth is built around the opposite bet: a quiet, accurate bot earns more trust than a chatty one, because a wrong comment costs more than a missed one.</p>
-  </div>
-
-  <div class="compare">
-    <div class="compare-col base">
-      <h4>What a coverage-first reviewer does</h4>
-      <ul>
-        <li><svg class="mark" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/></svg>Comments on nearly every changed line, so real findings drown in noise</li>
-        <li><svg class="mark" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/></svg>Pulls "related" context by embedding similarity &mdash; code that looks relevant, not code that provably is</li>
-        <li><svg class="mark" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/></svg>Runs as someone else's hosted service, on someone else's schedule and someone else's model</li>
-        <li><svg class="mark" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/></svg>Re-posts the same comment on every push, because nothing remembers what it already said</li>
-      </ul>
-    </div>
-    <div class="compare-col win">
-      <h4>What groundtruth does</h4>
-      <ul>
-        <li><svg class="mark" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="3,8.5 6.5,12 13,4"/></svg>Posts a finding only after it quotes a real line and survives a second, adversarial model pass</li>
-        <li><svg class="mark" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="3,8.5 6.5,12 13,4"/></svg>Parses the real function with Tree-sitter and finds its real callers with a text search &mdash; no embeddings anywhere</li>
-        <li><svg class="mark" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="3,8.5 6.5,12 13,4"/></svg>Runs as a step in your own CI, with your own key, on the model you choose</li>
-        <li><svg class="mark" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="3,8.5 6.5,12 13,4"/></svg>Fingerprints every finding by what it's about, not how it's worded, so re-runs never repeat a comment</li>
-      </ul>
-    </div>
-  </div>
 
   <div class="prose">
     <h2 id="stages">How it works</h2>
@@ -406,6 +380,32 @@ Reviewed with `anthropic/claude-sonnet-5` &middot; estimated $0.0032.&lt;/sub&gt
   <div class="prose">
     <p class="note">The summary call is handed the one verified finding and returns a sentence for the top of the comment &mdash; here, <i>&ldquo;A required argument was added to calculate_discount without updating its caller.&rdquo;</i> It names only <code>invoice.py</code>, a file in the verified set, so it passes the grounding check; a sentence naming anything else would be discarded and the plain list posted instead. Alongside the comment, one inline comment lands on <code>invoice.py:1</code> with the severity, category, confidence and quoted line.</p>
 
+  </div>
+
+  <div class="prose">
+    <h2 id="why">Why precision, not coverage</h2>
+    <p>Most AI reviewers optimize for coverage &mdash; say something about every changed line. Reviewers learn to tune that out fast, and the first time a bot invents a bug that isn't there, every real finding after it gets the same skeptical read. Groundtruth is built around the opposite bet: a quiet, accurate bot earns more trust than a chatty one, because a wrong comment costs more than a missed one.</p>
+  </div>
+
+  <div class="compare">
+    <div class="compare-col base">
+      <h4>What a coverage-first reviewer does</h4>
+      <ul>
+        <li><svg class="mark" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/></svg>Comments on nearly every changed line, so real findings drown in noise</li>
+        <li><svg class="mark" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/></svg>Pulls "related" context by embedding similarity &mdash; code that looks relevant, not code that provably is</li>
+        <li><svg class="mark" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/></svg>Runs as someone else's hosted service, on someone else's schedule and someone else's model</li>
+        <li><svg class="mark" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/></svg>Re-posts the same comment on every push, because nothing remembers what it already said</li>
+      </ul>
+    </div>
+    <div class="compare-col win">
+      <h4>What groundtruth does</h4>
+      <ul>
+        <li><svg class="mark" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="3,8.5 6.5,12 13,4"/></svg>Posts a finding only after it quotes a real line and survives a second, adversarial model pass</li>
+        <li><svg class="mark" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="3,8.5 6.5,12 13,4"/></svg>Parses the real function with Tree-sitter and finds its real callers with a text search &mdash; no embeddings anywhere</li>
+        <li><svg class="mark" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="3,8.5 6.5,12 13,4"/></svg>Runs as a step in your own CI, with your own key, on the model you choose</li>
+        <li><svg class="mark" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="3,8.5 6.5,12 13,4"/></svg>Fingerprints every finding by what it's about, not how it's worded, so re-runs never repeat a comment</li>
+      </ul>
+    </div>
   </div>
 
   <div class="prose">
