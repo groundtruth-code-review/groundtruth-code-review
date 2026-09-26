@@ -125,6 +125,11 @@ def run_gate(
 
         verdict = cross_examine(finding, _evidence_texts_to_str(evidence_texts), llm)
         combined = combined_confidence(finding.confidence, verdict)
+        said = {
+            "verifier_confidence": verdict.confidence,
+            "verifier_real": verdict.is_real,
+            "verifier_actionable": verdict.is_actionable,
+        }
 
         if combined < min_confidence:
             report.dropped.append(
@@ -135,13 +140,16 @@ def run_gate(
                     combined_confidence=combined,
                     dropped_at=DropStage.LOW_CONFIDENCE,
                     reason=verdict.reason or f"combined confidence {combined:.2f} below {min_confidence}",
+                    **said,
                 )
             )
             continue
 
         seen.add(fp)
         report.posted.append(
-            GateVerdict(finding=finding, posted=True, fingerprint=fp, combined_confidence=combined)
+            GateVerdict(
+                finding=finding, posted=True, fingerprint=fp, combined_confidence=combined, **said
+            )
         )
 
     report.posted.sort(key=lambda v: v.score, reverse=True)
@@ -155,6 +163,9 @@ def run_gate(
                 fingerprint=verdict.fingerprint,
                 combined_confidence=verdict.combined_confidence,
                 reason=f"ranked below the top {max_findings} findings for this review",
+                verifier_confidence=verdict.verifier_confidence,
+                verifier_real=verdict.verifier_real,
+                verifier_actionable=verdict.verifier_actionable,
             )
         )
 

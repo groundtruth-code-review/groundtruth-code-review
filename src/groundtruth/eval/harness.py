@@ -34,7 +34,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..context_engine import build_context, parse_diff
-from ..quality_gate import Finding, line_in_changed_hunk, run_gate
+from ..quality_gate import (
+    SKEPTIC_CALL_FAILED,
+    DropStage,
+    Finding,
+    GateVerdict,
+    line_in_changed_hunk,
+    run_gate,
+)
 from ..reviewer import CallTally, propose_findings_for_diffmap
 
 _LINE_TOLERANCE = 2  # a model may point at a neighbouring line of the same change
@@ -138,7 +145,8 @@ class EvalCase:
 class CaseResult:
     name: str
     caught: list[ExpectedFinding] = field(default_factory=list)
-    gated: list[tuple[ExpectedFinding, str]] = field(default_factory=list)
+    # (expected, stage, what the verifier said) -- see `verifier_said`
+    gated: list[tuple[ExpectedFinding, str, str]] = field(default_factory=list)
     missed: list[ExpectedFinding] = field(default_factory=list)
     false_positives: list[Finding] = field(default_factory=list)
     # assertions that the gate rejected something it was supposed to reject
@@ -162,7 +170,7 @@ class CaseResult:
     # Everything the gate rejected that matched no expectation. Without this
     # a "missed" bug is ambiguous: never proposed, or proposed and rejected
     # under a different title? Those have opposite fixes.
-    other_drops: list[tuple[Finding, str, str]] = field(default_factory=list)
+    other_drops: list[tuple[Finding, str, str, str]] = field(default_factory=list)
 
     @property
     def expected_total(self) -> int:
@@ -294,6 +302,29 @@ def load_cases(path: Path | str) -> list[EvalCase]:
     return cases
 
 
+def verifier_said(verdict: GateVerdict, min_confidence: float) -> str:
+    """Why the verifier turned a finding away, in the verifier's own terms.
+
+    "low_confidence" covers three different events -- the verifier called
+    the claim false, called it not worth fixing, or agreed with it but the
+    two confidences multiplied below the bar. Only the last is a threshold
+    question; the first two are the verifier disagreeing. Empty for drops
+    that never reached the verifier.
+    """
+    if verdict.dropped_at is not DropStage.LOW_CONFIDENCE or verdict.verifier_confidence is None:
+        return ""
+    if verdict.reason == SKEPTIC_CALL_FAILED:
+        return "verifier call failed"
+    if not verdict.verifier_real:
+        return "verifier: not real"
+    if not verdict.verifier_actionable:
+        return "verifier: real, not worth fixing"
+    return (
+        f"reviewer {verdict.finding.confidence:.2f} x verifier {verdict.verifier_confidence:.2f}"
+        f" = {verdict.combined_confidence:.2f}, needs {min_confidence:.2f}"
+    )
+
+
 def run_case(case: EvalCase, review_llm=None, verify_llm=None, min_confidence: float = 0.7) -> CaseResult:
     """Run one case through the real context engine, reviewer and gate.
 
@@ -360,7 +391,8 @@ def run_case(case: EvalCase, review_llm=None, verify_llm=None, min_confidence: f
         if gone is not None:
             matched_dropped.add(gone)
             verdict = dropped[gone]
-            result.gated.append((expected, verdict.dropped_at.value if verdict.dropped_at else "ranked out"))
+            stage = verdict.dropped_at.value if verdict.dropped_at else "ranked out"
+            result.gated.append((expected, stage, verifier_said(verdict, min_confidence)))
             continue
 
         result.missed.append(expected)
@@ -400,7 +432,12 @@ def run_case(case: EvalCase, review_llm=None, verify_llm=None, min_confidence: f
             result.gate_held.append(expected)
 
     result.other_drops = [
-        (v.finding, v.dropped_at.value if v.dropped_at else "ranked out", v.reason)
+        (
+            v.finding,
+            v.dropped_at.value if v.dropped_at else "ranked out",
+            v.reason,
+            verifier_said(v, min_confidence),
+        )
         for i, v in enumerate(dropped) if i not in matched_dropped
     ]
 
@@ -423,8 +460,10 @@ def render_report(report: EvalReport) -> str:
         lines.append(f"  {case.name}")
         for expected in case.caught:
             lines.append(f"    caught   {expected.file}:{expected.line}")
-        for expected, stage in case.gated:
+        for expected, stage, said in case.gated:
             lines.append(f"    gated    {expected.file}:{expected.line}  ({stage})")
+            if said:
+                lines.append(f"               {said}")
         for expected in case.missed:
             lines.append(f"    missed   {expected.file}:{expected.line}")
         for expected in case.gate_held:
@@ -447,8 +486,10 @@ def render_report(report: EvalReport) -> str:
             )
         for finding in case.false_positives:
             lines.append(f"    false +  {finding.file}:{finding.line}  {finding.title}")
-        for finding, stage, reason in case.other_drops:
+        for finding, stage, reason, said in case.other_drops:
             lines.append(f"    dropped  {finding.file}:{finding.line}  [{stage}] {finding.title}")
+            if said:
+                lines.append(f"               {said}")
             if reason:
                 lines.append(f"               {reason}")
         lines.append("")
@@ -490,7 +531,10 @@ def report_to_dict(report: EvalReport) -> dict:
             {
                 "name": case.name,
                 "caught": [f"{e.file}:{e.line}" for e in case.caught],
-                "gated": [{"finding": f"{e.file}:{e.line}", "stage": stage} for e, stage in case.gated],
+                "gated": [
+                    {"finding": f"{e.file}:{e.line}", "stage": stage, "verifier": said}
+                    for e, stage, said in case.gated
+                ],
                 "missed": [f"{e.file}:{e.line}" for e in case.missed],
                 "gate_held": [f"{e.file}:{e.line}" for e in case.gate_held],
                 "gate_leaked": [f"{e.file}:{e.line}" for e in case.gate_leaked],
@@ -500,8 +544,9 @@ def report_to_dict(report: EvalReport) -> dict:
                     for e, t, w in case.near_misses
                 ],
                 "other_drops": [
-                    {"file": f.file, "line": f.line, "title": f.title, "stage": st, "reason": r}
-                    for f, st, r in case.other_drops
+                    {"file": f.file, "line": f.line, "title": f.title, "stage": st, "reason": r,
+                     "verifier": said}
+                    for f, st, r, said in case.other_drops
                 ],
                 "gate_wrong_stage": [
                     {"finding": f"{e.file}:{e.line}", "expected": e.stage, "actual": a}

@@ -51,6 +51,12 @@ class GateVerdict:
     combined_confidence: float | None = None  # None if dropped before the skeptic pass ran
     dropped_at: DropStage | None = None
     reason: str = ""
+    # What the skeptic actually answered, kept apart from the product above.
+    # "combined 0.64" alone cannot say whether the verifier called the claim
+    # false or agreed with it at 0.8 -- and those need opposite fixes.
+    verifier_confidence: float | None = None
+    verifier_real: bool | None = None
+    verifier_actionable: bool | None = None
 
     @property
     def score(self) -> float:

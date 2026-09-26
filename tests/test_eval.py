@@ -56,6 +56,31 @@ def test_a_low_confidence_drop_records_that_stage():
     assert result.gated[0][1] == "low_confidence"
 
 
+def test_a_threshold_drop_shows_both_confidences_and_the_bar():
+    # agreed-with but multiplied under the bar is a threshold question; the
+    # report has to show the numbers or nobody can tell how close it was
+    agrees = {"is_real": True, "is_actionable": True, "confidence": 0.75}
+    result = run_case(_case({"findings": [_GOOD_FINDING]}, skeptic=agrees))
+    assert result.gated[0][2] == "reviewer 0.90 x verifier 0.75 = 0.68, needs 0.70"
+
+
+def test_a_verifier_that_disagrees_is_not_reported_as_a_threshold_miss():
+    # these are the verifier saying no; lowering min_confidence would not help
+    denies = {"is_real": False, "is_actionable": True, "confidence": 0.9}
+    nitpick = {"is_real": True, "is_actionable": False, "confidence": 0.9}
+    assert run_case(_case({"findings": [_GOOD_FINDING]}, skeptic=denies)).gated[0][2] == (
+        "verifier: not real"
+    )
+    assert run_case(_case({"findings": [_GOOD_FINDING]}, skeptic=nitpick)).gated[0][2] == (
+        "verifier: real, not worth fixing"
+    )
+
+
+def test_a_drop_before_the_verifier_says_nothing_about_it():
+    fabricated = {**_GOOD_FINDING, "quoted_code": "    end = page * per_page + 7777"}
+    assert run_case(_case({"findings": [fabricated]})).gated[0][2] == ""
+
+
 def test_a_finding_never_proposed_is_missed():
     result = run_case(_case({"findings": []}))
     assert len(result.missed) == 1
@@ -428,6 +453,6 @@ def test_every_dropped_finding_is_reported_with_its_stage_and_reason():
         recorded_review={"findings": [fabricated]},
     )
     result = run_case(case)
-    finding, stage, reason = result.other_drops[0]
+    finding, stage, reason, said = result.other_drops[0]
     assert stage == "hallucination"
     assert "not found" in reason
