@@ -646,7 +646,7 @@ PAGES["faq"] = (
       <p>If you can, yes &mdash; ideally from a different provider. Review with Claude and verify with GPT, or the reverse. The verifier's whole job is to doubt the first model, and a model is a poor judge of mistakes it would make itself. Nothing in the code prefers one arrangement; each stage takes its own model string. See <a href="configuration.html">verify with a different provider</a>, and note that it needs both providers' keys.</p>
 
       <h2>How mature is this?</h2>
-      <p>Honestly: alpha. The pipeline, the CLI, the eval harness and three platform adapters are implemented and covered by 286 tests that run offline against fake model clients, plus labeled cases replayed on every build. What that does <i>not</i> prove is behaviour against a live model on your codebase at scale &mdash; no test can. Start it on one repository, read what it posts, and tune <code>min_confidence</code> before you turn it on everywhere.</p>
+      <p>Honestly: alpha. The pipeline, the CLI, the eval harness and three platform adapters are implemented and covered by 290 tests that run offline against fake model clients, plus labeled cases replayed on every build. What that does <i>not</i> prove is behaviour against a live model on your codebase at scale &mdash; no test can. Start it on one repository, read what it posts, and tune <code>min_confidence</code> before you turn it on everywhere.</p>
 
       <h2>What is still missing?</h2>
       <p>Publication to PyPI, so installing stops meaning a git URL; and a self-hosted server mode for Bitbucket Data Center, which is the one platform with no free per-pull-request CI container. The <a href="REPOURL#roadmap">roadmap</a> is kept current.</p>

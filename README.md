@@ -18,10 +18,12 @@ Data Center.
 
 > **Status: early / alpha.** The pipeline, the CLI, the eval harness and the
 > GitHub, GitLab and Bitbucket Cloud adapters are implemented and tested
-> (286 tests, all green). A self-hosted server mode for Bitbucket Data
-> Center is the remaining piece; see [Roadmap](#roadmap). Nothing here is
-> published to PyPI yet — the install instructions below use a git URL until
-> it is.
+> (290 tests, all green). An optional server mode — an ingest API and the
+> database behind it — is implemented too (7 more tests, against a real
+> Postgres); a webhook receiver for Bitbucket Data Center and anything that
+> reads that database back out are not. See [Roadmap](#roadmap). Nothing
+> here is published to PyPI yet — the install instructions below use a git
+> URL until it is.
 
 ## How a review flows
 
@@ -393,16 +395,23 @@ file at all.
 - [x] a container image and the CI that gates it — multi-stage build whose
       test stage gates the wheel, published to GHCR on a version tag
 - [ ] publish to PyPI, so installing stops meaning a git URL
-- [ ] `adapters/bitbucket_dc` + `deploy/` — self-hosted server mode for orgs,
-      and the Helm chart that installs it. Deliberately not started before
-      the server exists: a chart with no workload to run, and sizing numbers
-      nobody measured, would be YAML pretending to be a deployment
-      (Docker Compose + Helm, not Kustomize — see the top-level design doc's
-      reasoning). The same server also becomes the durable store this design
-      otherwise has none of — review history, a dashboard, feedback-driven
-      threshold tuning — instead of a second, unrelated service; see
-      [docs/server-mode-design.md](docs/server-mode-design.md) for the
-      scoped design, not yet built
+- [x] `groundtruth.server` — an optional, self-hosted ingest API and the
+      three-table Postgres schema behind it (`pip install
+      "groundtruth-review[server]"`; `docker compose -f
+      deploy/docker-compose.yml up` for local dev). Each CI adapter POSTs
+      its JSON output here if `GROUNDTRUTH_INGEST_URL` is set; unset by
+      default, and nothing about the CLI or the three CI adapters changes
+      either way. This is the durable store the design otherwise has none
+      of — review history outliving one pull request — and phase 1 of
+      [docs/server-mode-design.md](docs/server-mode-design.md)
+- [ ] `adapters/bitbucket_dc` — the webhook receiver and queue that write
+      to the schema above directly, for the one platform with no free
+      per-pull-request CI container; and the Helm chart that installs it.
+      Deliberately not started before the receiver exists: a chart with no
+      workload to run, and sizing numbers nobody measured, would be YAML
+      pretending to be a deployment. Phase 2 of the same design doc, not
+      yet built — nothing yet reads the schema above back out, either
+      (no dashboard, no feedback loop: phase 3)
 
 ## Measuring it
 

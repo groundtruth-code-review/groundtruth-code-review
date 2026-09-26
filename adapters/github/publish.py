@@ -22,6 +22,7 @@ import os
 import sys
 import urllib.error
 import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -31,6 +32,7 @@ from common import (  # noqa: E402
     SUMMARY_MARKER,
     has_marker,
     inline_comment_body,
+    maybe_ingest,
     parse_fingerprint_marker,
     render_fingerprint_marker,
     render_summary,
@@ -46,6 +48,7 @@ __all__ = [
     "render_fingerprint_marker",
     "render_summary",
     "run_groundtruth_review",
+    "maybe_ingest",
     "GitHubClient",
     "GitHubApiError",
     "inline_comment_payloads",
@@ -166,7 +169,9 @@ def main() -> int:
     previous = find_previous_summary(client, pr_number)
     already_posted = parse_fingerprint_marker(previous.get("body", "")) if previous else []
 
+    started_at = datetime.now(timezone.utc)
     outcome = run_groundtruth_review(workspace, base_sha, head_sha, model, already_posted)
+    finished_at = datetime.now(timezone.utc)
 
     # Everything posted so far, so the next push reads one cumulative list
     # rather than only this run's findings.
@@ -182,6 +187,17 @@ def main() -> int:
             # diff GitHub itself sees, which can happen after a force-push
             # race) shouldn't take down the whole review.
             print(f"warning: {exc}", file=sys.stderr)
+
+    maybe_ingest(
+        outcome,
+        platform="github",
+        repo=repo,
+        pr_number=str(pr_number),
+        base_sha=base_sha,
+        head_sha=head_sha,
+        started_at=started_at,
+        finished_at=finished_at,
+    )
 
     return 0
 

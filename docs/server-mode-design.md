@@ -1,9 +1,25 @@
-# Server mode: a scoped design, not yet built
+# Server mode: a scoped design, phase 1 built
 
-This describes a piece of the roadmap (`adapters/bitbucket_dc` + `deploy/`)
-that does not exist yet. Nothing here is implemented, tested, or a promise
-of order — it is what would need to be true before it is. Treat it as an
-RFC, not a status report; [design.md](design.md) is the status report.
+This describes a piece of the roadmap (`adapters/bitbucket_dc` + `deploy/`).
+Phase 1 below — ingest only — is built, tested against a real Postgres, and
+covered by CI. Phases 2 and 3 are not: they remain what would need to be
+true before they exist, not a promise of order. Treat everything past
+"A path that ships value before the hard part" as an RFC, and that section
+itself as the line between what's real and what's still proposed;
+[design.md](design.md) is the status report for the rest of the system.
+
+## Try it
+
+```
+docker compose -f deploy/docker-compose.yml up
+```
+
+starts Postgres and the ingest API on `localhost:8000` — `GET /healthz`,
+`POST /reviews`. Point a CI adapter at it with `GROUNDTRUTH_INGEST_URL` (and
+`GROUNDTRUTH_INGEST_TOKEN` if the server has one configured — see
+`.env.example`) and its next run's JSON output lands in `reviews` and
+`findings`. Nothing reads that data back out yet; see "What a dashboard and
+a feedback loop are, concretely" below for what would.
 
 ## Two questions, one answer
 
@@ -81,8 +97,10 @@ read:
   printed).
 - **`findings`** — one row per candidate the gate ever saw: fingerprint,
   file, line, category, severity, confidence, whether it posted, and if
-  not, which stage dropped it and why. This is `report_to_dict`'s shape,
-  persisted instead of thrown away after one eval run.
+  not, which stage dropped it and why. This is `cli.render_json`'s
+  `findings` and `dropped` arrays, persisted instead of only printed —
+  which is why `render_json` gained a full `dropped` array of its own
+  (previously just a count) as part of building this.
 - **`feedback`** — one row per signal on a posted finding: a reaction, a
   resolved thread, an edited line, where it came from, and when. This is
   the table that doesn't exist anywhere today, because nothing currently
@@ -116,20 +134,25 @@ The Bitbucket Data Center webhook receiver is the part that requires the
 most new code (a receiver, the queue, retry handling). The database and a
 read-only dashboard do not depend on it existing first:
 
-1. **Ingest only.** Add one optional HTTP call to the end of each existing
-   CI adapter — after `groundtruth review --format json` returns, POST that
-   JSON to a `/reviews` endpoint if one is configured. Zero change to the
-   pipeline, one `if` in three adapters. This alone unlocks history and a
-   dashboard for GitHub, GitLab and Bitbucket Cloud users who stand up
-   nothing but a database and this small ingest API.
-2. **The Bitbucket Data Center receiver.** Webhook in, `arq` job, same core
-   pipeline, `reviews`/`findings` written directly instead of only POSTed.
-   This is where the queue in the section above is load-bearing rather than
-   optional.
-3. **Feedback ingestion.** Per-platform webhook subscriptions writing to
-   `feedback`, and the first read query that turns it into a suggestion
-   rather than just a number.
+1. **Ingest only — built.** Each CI adapter POSTs its JSON output to a
+   `/reviews` endpoint if `GROUNDTRUTH_INGEST_URL` is set
+   (`adapters/common.py::maybe_ingest`); unset, it's the one `if` doing
+   nothing, same as before this existed. `groundtruth.server` (an optional
+   `pip install "groundtruth-review[server]"`) is the FastAPI app and the
+   three-table schema (`src/groundtruth/server/`), tested against a real
+   Postgres in CI (the `server-test` job) rather than a mock, since the
+   thing worth proving here is the SQL. This alone unlocks history for
+   GitHub, GitLab and Bitbucket Cloud users who stand up nothing but this
+   ingest API and a database — no dashboard reads it yet (that's still
+   below), but the data to build one on is there from the first ingested
+   review.
+2. **The Bitbucket Data Center receiver — not built.** Webhook in, `arq`
+   job, same core pipeline, `reviews`/`findings` written directly instead
+   of only POSTed. This is where the queue described above is load-bearing
+   rather than optional.
+3. **Feedback ingestion — not built.** Per-platform webhook subscriptions
+   writing to `feedback`, and the first read query that turns it into a
+   suggestion rather than just a number.
 
-Phase 1 is small enough to scope precisely once it's the one being built;
-phases 2 and 3 are where the actual uncertainty in this document lives, and
+Phases 2 and 3 are where the actual uncertainty in this document lives, and
 where a review of this RFC should focus before anyone starts phase 2.

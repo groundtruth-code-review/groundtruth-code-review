@@ -166,9 +166,14 @@ findings. That is what makes "any platform, any model" true rather than a slogan
 ## Status
 
 All seven stages work today on GitHub, GitLab and Bitbucket Cloud, covered by
-286 tests that run offline against fake model clients. A self-hosted server
-mode for Bitbucket Data Center is the remaining module — see
-[server-mode-design.md](server-mode-design.md) for the scoped, not-yet-built
-design, which also covers the gap this document's own "what it deliberately
-does not use" table names: no database, so no review history outlives one
-pull request.
+290 tests that run offline against fake model clients, plus 7 more (the
+optional server mode's) that run against a real Postgres because what they
+prove is the SQL, not something a fake client could stand in for.
+
+That server mode is phase 1 of a larger, only-partly-built piece:
+[server-mode-design.md](server-mode-design.md) covers what phase 1 actually
+shipped (an ingest API and the database this document's own "what it
+deliberately does not use" table used to say didn't exist), and what's still
+only scoped — a webhook receiver for Bitbucket Data Center, the one platform
+with no free per-pull-request CI container, and a feedback loop nothing
+reads that database into yet.

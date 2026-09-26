@@ -25,6 +25,7 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -32,6 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from common import (  # noqa: E402
     has_marker,
     inline_comment_body,
+    maybe_ingest,
     parse_fingerprint_marker,
     render_summary,
     run_groundtruth_review,
@@ -146,7 +148,9 @@ def main() -> int:
     previous = find_previous_summary(client, mr_iid)
     already_posted = parse_fingerprint_marker(previous.get("body", "")) if previous else []
 
+    started_at = datetime.now(timezone.utc)
     outcome = run_groundtruth_review(workspace, base_sha, head_sha, model, already_posted)
+    finished_at = datetime.now(timezone.utc)
     outcome["fingerprints"] = sorted(set(already_posted) | set(outcome.get("fingerprints", [])))
 
     upsert_summary(client, mr_iid, render_summary(outcome), previous=previous)
@@ -159,6 +163,17 @@ def main() -> int:
             # does not consider part of the diff) must not take the review
             # down with it.
             print(f"warning: {exc}", file=sys.stderr)
+
+    maybe_ingest(
+        outcome,
+        platform="gitlab",
+        repo=os.environ.get("CI_PROJECT_PATH", project_id),
+        pr_number=str(mr_iid),
+        base_sha=base_sha,
+        head_sha=head_sha,
+        started_at=started_at,
+        finished_at=finished_at,
+    )
 
     return 0
 

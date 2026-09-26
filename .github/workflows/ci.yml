@@ -34,6 +34,42 @@ jobs:
         # labeled cases replayed against recorded responses, no key needed.
         run: groundtruth eval --cases cases --min-catch 0.8 --max-fp 0.2
 
+  server-test:
+    # Separate from `test` because it needs Postgres and the `server`
+    # extra, neither of which the base package requires. tests/server
+    # skips itself cleanly under plain `pytest -q` (see tests/server/
+    # conftest.py) precisely so this job can stay optional infrastructure
+    # without the core suite depending on it.
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: groundtruth_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install -e ".[dev,server]"
+
+      - name: Server tests
+        env:
+          GROUNDTRUTH_TEST_DB_URL: postgresql://postgres:postgres@localhost:5432/groundtruth_test
+        run: pytest -q tests/server
+
   image:
     # Proves the multi-stage build still works on every push, without
     # publishing anything. The test stage inside the Dockerfile is what gates

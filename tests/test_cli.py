@@ -279,6 +279,23 @@ def test_render_json_is_valid_json_with_expected_shape(repo):
     assert payload["dropped_count"] == 0
 
 
+def test_render_json_gives_full_detail_on_a_dropped_finding_not_just_a_count(repo):
+    # dropped_count alone can't feed a dashboard or a tuning signal -- it
+    # can't say which file, which stage, or why
+    repo_path, base_sha = repo
+    misplaced = {**FINDING, "line": 90}
+    llm = FakeLlm(review_response={"findings": [misplaced]})
+    outcome = run_review(repo_path, base=base_sha, head="HEAD", llm=llm)
+    payload = json.loads(render_json(outcome))
+    assert payload["dropped_count"] == 1
+    dropped = payload["dropped"][0]
+    assert dropped["file"] == "invoice.py"
+    assert dropped["dropped_at"] == "bad_location"
+    assert "reason" in dropped
+    # a posted finding's entry never carries these -- there's nothing to say
+    assert "dropped_at" not in payload["findings"] if payload["findings"] else True
+
+
 def test_render_text_mentions_the_finding(repo):
     repo_path, base_sha = repo
     llm = FakeLlm(review_response={"findings": [FINDING]})

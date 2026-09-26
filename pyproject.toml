@@ -26,10 +26,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.6"]
+dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.6", "httpx2>=2.0"]
+# The optional server mode (docs/server-mode-design.md): an ingest API and
+# the database behind it. Nothing in the base package imports these, and
+# `groundtruth review` never needs them.
+server = ["fastapi>=0.115", "uvicorn>=0.30", "psycopg[binary]>=3.2"]
 
 [project.scripts]
 groundtruth = "groundtruth.cli:main"
+groundtruth-server = "groundtruth.server.__main__:main"
 
 [project.urls]
 Homepage = "https://github.com/groundtruth-code-review/groundtruth-code-review"

@@ -11,9 +11,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+from datetime import datetime, timezone
+
 from common import (  # noqa: E402
     has_marker,
     inline_comment_body,
+    maybe_ingest,
     parse_fingerprint_marker,
     render_fingerprint_marker,
     render_summary,
@@ -130,3 +133,82 @@ def test_a_healthy_review_carries_no_warning():
     body = render_summary({"findings": [FINDING], "dropped_count": 0,
                            "review_incomplete": False, "review_failures": 0})
     assert "[!WARNING]" not in body
+
+
+def _ingest_args(**overrides):
+    args = dict(
+        outcome={"findings": [FINDING], "dropped": [], "dropped_count": 0},
+        platform="github", repo="acme/widgets", pr_number="7",
+        base_sha="a" * 40, head_sha="b" * 40,
+        started_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        finished_at=datetime(2026, 1, 1, 0, 0, 5, tzinfo=timezone.utc),
+    )
+    args.update(overrides)
+    return args
+
+
+def test_maybe_ingest_is_a_no_op_when_no_url_is_configured():
+    import common
+    calls = []
+    original = common.urllib.request.urlopen
+    common.urllib.request.urlopen = lambda *a, **k: calls.append((a, k))
+    common.os.environ.pop("GROUNDTRUTH_INGEST_URL", None)
+    try:
+        maybe_ingest(**_ingest_args())
+    finally:
+        common.urllib.request.urlopen = original
+    assert calls == []
+
+
+def test_maybe_ingest_posts_the_outcome_wrapped_with_platform_context():
+    import json as jsonlib
+
+    import common
+    captured = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    def fake_urlopen(request, timeout=None):
+        captured["request"] = request
+        captured["timeout"] = timeout
+        return FakeResponse()
+
+    original = common.urllib.request.urlopen
+    common.urllib.request.urlopen = fake_urlopen
+    common.os.environ["GROUNDTRUTH_INGEST_URL"] = "https://ingest.example/reviews"
+    common.os.environ["GROUNDTRUTH_INGEST_TOKEN"] = "s3cret"
+    try:
+        maybe_ingest(**_ingest_args())
+    finally:
+        common.urllib.request.urlopen = original
+        common.os.environ.pop("GROUNDTRUTH_INGEST_URL", None)
+        common.os.environ.pop("GROUNDTRUTH_INGEST_TOKEN", None)
+
+    request = captured["request"]
+    assert request.full_url == "https://ingest.example/reviews"
+    assert request.get_header("Authorization") == "Bearer s3cret"
+    body = jsonlib.loads(request.data)
+    assert body["platform"] == "github"
+    assert body["repo"] == "acme/widgets"
+    assert body["outcome"]["findings"][0]["fingerprint"] == "abc123"
+
+
+def test_maybe_ingest_swallows_a_failed_post_instead_of_raising():
+    import common
+
+    def fake_urlopen(request, timeout=None):
+        raise common.urllib.error.URLError("connection refused")
+
+    original = common.urllib.request.urlopen
+    common.urllib.request.urlopen = fake_urlopen
+    common.os.environ["GROUNDTRUTH_INGEST_URL"] = "https://ingest.example/reviews"
+    try:
+        maybe_ingest(**_ingest_args())  # must not raise
+    finally:
+        common.urllib.request.urlopen = original
+        common.os.environ.pop("GROUNDTRUTH_INGEST_URL", None)

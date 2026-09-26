@@ -356,8 +356,13 @@ def run_review(
 
 
 def _verdict_to_dict(verdict: GateVerdict) -> dict:
+    """The shape shared by a posted finding and a dropped one -- a consumer
+    that only reads `findings` never has to know a dropped verdict exists,
+    and one that reads `dropped` (a fine-tuning or dashboard build, not the
+    CLI's own output) gets the same fields plus why it didn't post.
+    """
     f = verdict.finding
-    return {
+    d: dict = {
         "file": f.file,
         "line": f.line,
         "category": f.category,
@@ -367,6 +372,10 @@ def _verdict_to_dict(verdict: GateVerdict) -> dict:
         "confidence": verdict.combined_confidence,
         "fingerprint": verdict.fingerprint,
     }
+    if not verdict.posted:
+        d["dropped_at"] = verdict.dropped_at.value if verdict.dropped_at else "ranked_out"
+        d["reason"] = verdict.reason
+    return d
 
 
 def render_json(outcome: ReviewOutcome) -> str:
@@ -374,6 +383,10 @@ def render_json(outcome: ReviewOutcome) -> str:
         "findings": [_verdict_to_dict(v) for v in outcome.findings],
         "summary": outcome.summary,
         "fingerprints": [v.fingerprint for v in outcome.findings],
+        # Full detail on everything the gate rejected, not just how many --
+        # a fine-tuning signal needs to know a stage and a reason, and the
+        # count alone (kept for anyone already reading it) says neither.
+        "dropped": [_verdict_to_dict(v) for v in outcome.dropped],
         "dropped_count": len(outcome.dropped),
         "review_incomplete": outcome.review_incomplete,
         "review_calls": outcome.review_calls,

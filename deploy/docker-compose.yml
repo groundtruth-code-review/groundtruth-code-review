@@ -1,0 +1,45 @@
+# Local dev only: Postgres plus the ingest API, so trying server mode does
+# not mean standing up a real database by hand first. Not what CI tests
+# against (CI uses a plain `postgres:16` service container -- see
+# .github/workflows/ci.yml) and not a production deployment: there is no
+# volume backup story here, and the token below is a placeholder.
+#
+# Run from the repository root:
+#   docker compose -f deploy/docker-compose.yml up
+#
+# Then, from another CI run or curl:
+#   GROUNDTRUTH_INGEST_URL=http://localhost:8000/reviews
+#   GROUNDTRUTH_INGEST_TOKEN=dev-only-change-me
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: groundtruth
+      POSTGRES_PASSWORD: groundtruth
+      POSTGRES_DB: groundtruth
+    ports:
+      - "5432:5432"
+    volumes:
+      - groundtruth-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U groundtruth"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  server:
+    build:
+      context: ..
+      dockerfile: deploy/server.Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      GROUNDTRUTH_DB_URL: postgresql://groundtruth:groundtruth@postgres:5432/groundtruth
+      GROUNDTRUTH_INGEST_TOKEN: dev-only-change-me
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  groundtruth-pgdata:

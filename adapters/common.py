@@ -14,10 +14,18 @@ it should keep running on nothing but a Python interpreter.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
+import sys
+import urllib.error
+import urllib.request
+from datetime import datetime
 
 SUMMARY_MARKER = "<!-- groundtruth-review:summary -->"
 FINGERPRINT_PREFIX = "<!-- groundtruth-review:fingerprints "
+
+ENV_INGEST_URL = "GROUNDTRUTH_INGEST_URL"
+ENV_INGEST_TOKEN = "GROUNDTRUTH_INGEST_TOKEN"
 
 
 def render_fingerprint_marker(fingerprints: list[str]) -> str:
@@ -179,5 +187,55 @@ def run_groundtruth_review(
     if result.returncode != 0:
         raise RuntimeError(f"groundtruth review failed: {result.stderr.strip()}")
     return json.loads(result.stdout)
+
+
+def maybe_ingest(
+    outcome: dict,
+    *,
+    platform: str,
+    repo: str,
+    pr_number: str,
+    base_sha: str,
+    head_sha: str,
+    started_at: datetime,
+    finished_at: datetime,
+) -> None:
+    """POST `outcome` -- exactly what `run_groundtruth_review` returned --
+    to the optional server-mode ingest endpoint (see
+    docs/server-mode-design.md), if one is configured.
+
+    A no-op when GROUNDTRUTH_INGEST_URL is unset, which is the default and
+    the common case. By the time this runs the review has already posted
+    to the pull request, so a failure here is logged and swallowed rather
+    than raised: history is a nice-to-have this run should not fail over.
+    """
+    url = os.environ.get(ENV_INGEST_URL)
+    if not url:
+        return
+
+    body = json.dumps(
+        {
+            "platform": platform,
+            "repo": repo,
+            "pr_number": pr_number,
+            "base_sha": base_sha,
+            "head_sha": head_sha,
+            "started_at": started_at.isoformat(),
+            "finished_at": finished_at.isoformat(),
+            "outcome": outcome,
+        }
+    ).encode("utf-8")
+
+    headers = {"Content-Type": "application/json"}
+    token = os.environ.get(ENV_INGEST_TOKEN)
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    request = urllib.request.Request(url, data=body, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(request, timeout=10):
+            pass
+    except Exception as exc:
+        print(f"ingest_failed url={url} error={exc}", file=sys.stderr)
 
 

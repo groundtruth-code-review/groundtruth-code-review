@@ -27,6 +27,7 @@ import os
 import sys
 import urllib.error
 import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -34,6 +35,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from common import (  # noqa: E402
     has_marker,
     inline_comment_body,
+    maybe_ingest,
     parse_fingerprint_marker,
     render_summary,
     run_groundtruth_review,
@@ -151,9 +153,10 @@ def main() -> int:
 
     # A branch name, not a SHA: Pipelines gives the merge target by name, and
     # the clone has it as a remote ref.
-    outcome = run_groundtruth_review(
-        workspace, f"origin/{target_branch}", head_sha, model, already_posted
-    )
+    base_ref = f"origin/{target_branch}"
+    started_at = datetime.now(timezone.utc)
+    outcome = run_groundtruth_review(workspace, base_ref, head_sha, model, already_posted)
+    finished_at = datetime.now(timezone.utc)
     outcome["fingerprints"] = sorted(set(already_posted) | set(outcome.get("fingerprints", [])))
 
     upsert_summary(client, pr_id, render_summary(outcome), previous=previous)
@@ -163,6 +166,17 @@ def main() -> int:
             client.create_comment(pr_id, payload)
         except BitbucketApiError as exc:
             print(f"warning: {exc}", file=sys.stderr)
+
+    maybe_ingest(
+        outcome,
+        platform="bitbucket_cloud",
+        repo=workspace_repo,
+        pr_number=str(pr_id),
+        base_sha=base_ref,
+        head_sha=head_sha,
+        started_at=started_at,
+        finished_at=finished_at,
+    )
 
     return 0
 
