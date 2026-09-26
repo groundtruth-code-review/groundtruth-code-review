@@ -18,7 +18,7 @@ Data Center.
 
 > **Status: early / alpha.** The pipeline, the CLI, the eval harness and the
 > GitHub, GitLab and Bitbucket Cloud adapters are implemented and tested
-> (186 tests, all green). A self-hosted server mode for Bitbucket Data
+> (286 tests, all green). A self-hosted server mode for Bitbucket Data
 > Center is the remaining piece; see [Roadmap](#roadmap). Nothing here is
 > published to PyPI yet — the install instructions below use a git URL until
 > it is.
@@ -132,6 +132,11 @@ history to diff against the base ref, not the default shallow clone):
 ```yaml
 # .github/workflows/groundtruth.yml
 on: pull_request
+# A second push cancels the review still running for this PR, instead of
+# racing it to write the summary comment last.
+concurrency:
+  group: groundtruth-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 permissions:
   pull-requests: write
 jobs:
@@ -146,7 +151,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
-That's the whole install — one repo secret, one 12-line workflow file. No
+That's the whole install — one repo secret, one short workflow file. No
 server, no database, no webhook to register.
 
 ## Using it on GitLab
@@ -393,7 +398,11 @@ file at all.
       the server exists: a chart with no workload to run, and sizing numbers
       nobody measured, would be YAML pretending to be a deployment
       (Docker Compose + Helm, not Kustomize — see the top-level design doc's
-      reasoning)
+      reasoning). The same server also becomes the durable store this design
+      otherwise has none of — review history, a dashboard, feedback-driven
+      threshold tuning — instead of a second, unrelated service; see
+      [docs/server-mode-design.md](docs/server-mode-design.md) for the
+      scoped design, not yet built
 
 ## Measuring it
 

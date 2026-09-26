@@ -1,3 +1,8 @@
+# A composite action runs inside whatever job includes it, so it cannot set
+# `concurrency:` on the caller's behalf -- that has to live in the calling
+# workflow (see the sample in README.md / getting-started.html). Without it,
+# a fast second push starts a second run of this action before the first has
+# posted, and the two race to write the same summary comment.
 name: "Groundtruth Review"
 description: >-
   AI code review that proves what it claims — deterministic context (no

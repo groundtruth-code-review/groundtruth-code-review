@@ -72,6 +72,9 @@ groundtruth review \
       <div class="code-box">
         <pre><code># .github/workflows/groundtruth.yml
 on: pull_request
+concurrency:
+  group: groundtruth-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 permissions:
   pull-requests: write
 jobs:
@@ -87,7 +90,7 @@ jobs:
       </div>
       <p>Add <code>ANTHROPIC_API_KEY</code> under <b>Settings &rarr; Secrets and variables &rarr; Actions</b>, and that is the whole install. <a href="integrations.html">GitLab, Bitbucket Cloud and Kubernetes</a> take about the same.</p>
 
-      <div class="callout ok"><b>Two settings people miss.</b> <code>fetch-depth: 0</code> gives the job the history it needs to diff against the base ref. <code>pull-requests: write</code> lets it post; without it the review runs and then fails at the last step.</div>
+      <div class="callout ok"><b>Three settings people miss.</b> <code>fetch-depth: 0</code> gives the job the history it needs to diff against the base ref. <code>pull-requests: write</code> lets it post; without it the review runs and then fails at the last step. <code>concurrency</code> cancels the review for a pull request's previous push instead of letting two runs race to write the same summary comment &mdash; see <a href="faq.html#what-happens-if-i-push-twice-quickly">what happens if I push twice quickly</a>.</div>
 
       <h2 id="what-happens-on-the-pull-request">What happens on the pull request<a class="h-anchor" href="#what-happens-on-the-pull-request" aria-label="Link to this section">#</a></h2>
       <p>Two things, and only ever these two:</p>

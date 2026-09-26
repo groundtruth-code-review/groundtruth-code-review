@@ -73,6 +73,13 @@
   </div>
 </details>
 
+<details id="what-happens-if-i-push-twice-quickly">
+  <summary>What happens if I push twice quickly?<a class="h-anchor" href="#what-happens-if-i-push-twice-quickly" aria-label="Link to this question">#</a></summary>
+  <div class="details-body">
+<p>There is no queue, so both pushes can trigger a review that runs at the same time. Each one reads the pull request's summary comment for the fingerprints already posted, adds its own, and writes the result back &mdash; and if both reads happen before either write, the second write can overwrite the first one's additions. The cost is narrow: a finding that is still present can get re-posted once on a later push, never a finding that no longer applies. <a href="getting-started.html">The sample workflow</a> sets GitHub's <code>concurrency</code> so a second push cancels the review still running for the same pull request rather than racing it; GitLab's equivalent is <code>interruptible: true</code> plus the project's auto-cancel setting. Bitbucket Pipelines has no equivalent primitive, so the fingerprint marker is the only protection there.</p>
+  </div>
+</details>
+
 <details id="can-i-run-it-with-no-api-cost-at-all">
   <summary>Can I run it with no API cost at all?<a class="h-anchor" href="#can-i-run-it-with-no-api-cost-at-all" aria-label="Link to this question">#</a></summary>
   <div class="details-body">
@@ -125,7 +132,7 @@
 <details id="how-mature-is-this">
   <summary>How mature is this?<a class="h-anchor" href="#how-mature-is-this" aria-label="Link to this question">#</a></summary>
   <div class="details-body">
-<p>Honestly: alpha. The pipeline, the CLI, the eval harness and three platform adapters are implemented and covered by 190 tests that run offline against fake model clients, plus labeled cases replayed on every build. What that does <i>not</i> prove is behaviour against a live model on your codebase at scale &mdash; no test can. Start it on one repository, read what it posts, and tune <code>min_confidence</code> before you turn it on everywhere.</p>
+<p>Honestly: alpha. The pipeline, the CLI, the eval harness and three platform adapters are implemented and covered by 286 tests that run offline against fake model clients, plus labeled cases replayed on every build. What that does <i>not</i> prove is behaviour against a live model on your codebase at scale &mdash; no test can. Start it on one repository, read what it posts, and tune <code>min_confidence</code> before you turn it on everywhere.</p>
   </div>
 </details>
 

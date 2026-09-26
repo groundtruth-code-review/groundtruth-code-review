@@ -130,6 +130,9 @@ groundtruth review \\
       <div class="code-box">
         <pre><code># .github/workflows/groundtruth.yml
 on: pull_request
+concurrency:
+  group: groundtruth-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 permissions:
   pull-requests: write
 jobs:
@@ -145,7 +148,7 @@ jobs:
       </div>
       <p>Add <code>ANTHROPIC_API_KEY</code> under <b>Settings &rarr; Secrets and variables &rarr; Actions</b>, and that is the whole install. <a href="integrations.html">GitLab, Bitbucket Cloud and Kubernetes</a> take about the same.</p>
 
-      <div class="callout ok"><b>Two settings people miss.</b> <code>fetch-depth: 0</code> gives the job the history it needs to diff against the base ref. <code>pull-requests: write</code> lets it post; without it the review runs and then fails at the last step.</div>
+      <div class="callout ok"><b>Three settings people miss.</b> <code>fetch-depth: 0</code> gives the job the history it needs to diff against the base ref. <code>pull-requests: write</code> lets it post; without it the review runs and then fails at the last step. <code>concurrency</code> cancels the review for a pull request's previous push instead of letting two runs race to write the same summary comment &mdash; see <a href="faq.html#what-happens-if-i-push-twice-quickly">what happens if I push twice quickly</a>.</div>
 
       <h2>What happens on the pull request</h2>
       <p>Two things, and only ever these two:</p>
@@ -349,6 +352,9 @@ PAGES["integrations"] = (
       <div class="code-box">
         <pre><code># .github/workflows/groundtruth.yml
 on: pull_request
+concurrency:
+  group: groundtruth-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 permissions:
   pull-requests: write
 jobs:
@@ -377,6 +383,7 @@ jobs:
       <ul>
         <li><code>fetch-depth: 0</code> is required &mdash; the default shallow clone has no base commit to diff against.</li>
         <li><code>pull-requests: write</code> is required for the job's own <code>GITHUB_TOKEN</code> to post.</li>
+        <li><code>concurrency</code> cancels the review still running for a pull request when a new push arrives, instead of letting two runs race to write the same summary comment.</li>
         <li>Findings post as review comments on the line; the summary is an issue comment, edited in place on later pushes.</li>
       </ul>
 
@@ -387,6 +394,7 @@ jobs:
         <li>Set <code>GIT_DEPTH: 0</code> in the job, for the same reason GitHub needs <code>fetch-depth: 0</code>.</li>
         <li>Findings post as positioned discussions, which need both the base and head SHAs &mdash; the adapter reads them from <code>CI_MERGE_REQUEST_DIFF_BASE_SHA</code> and <code>CI_COMMIT_SHA</code>.</li>
         <li>The summary is a note, edited in place.</li>
+        <li><code>interruptible: true</code> opts the job into GitLab's auto-cancel-redundant-pipelines behaviour, the same race protection GitHub's <code>concurrency</code> gives &mdash; enable it once per project under Settings &rarr; CI/CD &rarr; General pipelines.</li>
       </ul>
 
       <h2>Bitbucket Cloud</h2>
@@ -396,6 +404,7 @@ jobs:
         <li>Pipelines gives you the merge target as a <i>branch name</i>, not a SHA, so the step fetches <code>origin/$BITBUCKET_PR_DESTINATION_BRANCH</code> before reviewing.</li>
         <li>Authentication is an app password or repository access token over Basic auth, as <code>GROUNDTRUTH_BITBUCKET_USER</code> and <code>GROUNDTRUTH_BITBUCKET_APP_PASSWORD</code>.</li>
         <li>Findings post as inline-anchored comments; the summary is a plain comment on the pull request.</li>
+        <li>Pipelines has no concurrency-group equivalent to cancel a superseded run on a fast second push &mdash; the fingerprint marker is the only protection against a duplicate comment there.</li>
       </ul>
 
       <h2>Kubernetes, Tekton, Argo, Jenkins</h2>
@@ -612,6 +621,9 @@ PAGES["faq"] = (
       <h2>Does it re-comment on every push?</h2>
       <p>No. Every finding gets a fingerprint built from the file, the surrounding code and the category &mdash; deliberately not the model's wording, so rephrasing the same finding does not make it look new. Fingerprints already posted are carried in the summary comment and passed back on the next run.</p>
 
+      <h2>What happens if I push twice quickly?</h2>
+      <p>There is no queue, so both pushes can trigger a review that runs at the same time. Each one reads the pull request's summary comment for the fingerprints already posted, adds its own, and writes the result back &mdash; and if both reads happen before either write, the second write can overwrite the first one's additions. The cost is narrow: a finding that is still present can get re-posted once on a later push, never a finding that no longer applies. <a href="getting-started.html">The sample workflow</a> sets GitHub's <code>concurrency</code> so a second push cancels the review still running for the same pull request rather than racing it; GitLab's equivalent is <code>interruptible: true</code> plus the project's auto-cancel setting. Bitbucket Pipelines has no equivalent primitive, so the fingerprint marker is the only protection there.</p>
+
       <h2>Can I run it with no API cost at all?</h2>
       <p>Yes. Set <code>model: ollama/&lt;model&gt;</code> and every call goes to a local endpoint. No key, no spend, and no code leaves the machine. Review quality then depends on the local model you run.</p>
 
@@ -634,7 +646,7 @@ PAGES["faq"] = (
       <p>If you can, yes &mdash; ideally from a different provider. Review with Claude and verify with GPT, or the reverse. The verifier's whole job is to doubt the first model, and a model is a poor judge of mistakes it would make itself. Nothing in the code prefers one arrangement; each stage takes its own model string. See <a href="configuration.html">verify with a different provider</a>, and note that it needs both providers' keys.</p>
 
       <h2>How mature is this?</h2>
-      <p>Honestly: alpha. The pipeline, the CLI, the eval harness and three platform adapters are implemented and covered by 190 tests that run offline against fake model clients, plus labeled cases replayed on every build. What that does <i>not</i> prove is behaviour against a live model on your codebase at scale &mdash; no test can. Start it on one repository, read what it posts, and tune <code>min_confidence</code> before you turn it on everywhere.</p>
+      <p>Honestly: alpha. The pipeline, the CLI, the eval harness and three platform adapters are implemented and covered by 286 tests that run offline against fake model clients, plus labeled cases replayed on every build. What that does <i>not</i> prove is behaviour against a live model on your codebase at scale &mdash; no test can. Start it on one repository, read what it posts, and tune <code>min_confidence</code> before you turn it on everywhere.</p>
 
       <h2>What is still missing?</h2>
       <p>Publication to PyPI, so installing stops meaning a git URL; and a self-hosted server mode for Bitbucket Data Center, which is the one platform with no free per-pull-request CI container. The <a href="REPOURL#roadmap">roadmap</a> is kept current.</p>

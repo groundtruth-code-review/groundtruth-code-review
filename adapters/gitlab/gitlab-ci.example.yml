@@ -15,6 +15,13 @@ groundtruth-review:
   image: python:3.11-slim
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  # A second push starts a second pipeline before the first has posted; both
+  # would read the same note before either writes it back, and the second
+  # write can silently drop findings the first one already recorded.
+  # `interruptible` opts this job into GitLab's auto-cancel-redundant-
+  # pipelines behaviour, which also needs enabling once per project under
+  # Settings > CI/CD > General pipelines (on by default for new projects).
+  interruptible: true
   variables:
     GIT_DEPTH: 0
     GROUNDTRUTH_MODEL: anthropic/claude-sonnet-5
