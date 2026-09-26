@@ -28,7 +28,7 @@
 </nav>
 
 <div class="wrap">
-  <div class="doc-layout">
+  <div class="doc-layout with-toc">
     <aside class="sidebar">
       <h5>Guide</h5>
       <ul>
@@ -43,11 +43,10 @@
     </aside>
 
     <main class="doc-body prose">
-
-      <h1>Getting started</h1>
+<h1>Getting started</h1>
       <p class="doc-lede">A review is one command that reads a diff and exits. There is no server to run, no database to provision and no webhook to register &mdash; so installing it means adding a job to CI you already have.</p>
 
-      <h2>What you need</h2>
+      <h2 id="what-you-need">What you need<a class="h-anchor" href="#what-you-need" aria-label="Link to this section">#</a></h2>
       <ul>
         <li><b>Python 3.10 or newer</b>, if you are running the CLI directly. The GitHub Action and the container image bring their own.</li>
         <li><b>A full clone.</b> The review diffs against the base branch, which a shallow clone does not contain. Every integration page says how to turn shallow clones off.</li>
@@ -55,7 +54,7 @@
         <li><b>ripgrep</b> is optional. It makes the caller search much faster; without it a pure-Python walk does the same work with the same results.</li>
       </ul>
 
-      <h2>Try it first without a key</h2>
+      <h2 id="try-it-first-without-a-key">Try it first without a key<a class="h-anchor" href="#try-it-first-without-a-key" aria-label="Link to this section">#</a></h2>
       <p>Before wiring anything into CI, see what the pipeline assembles. <code>--dry-run</code> stops before the first model call, so it needs no key and costs nothing:</p>
       <div class="code-box">
         <pre><code>pip install "git+https://github.com/groundtruth-code-review/groundtruth-code-review.git"
@@ -68,7 +67,7 @@ groundtruth review \
       </div>
       <p>You get the cost estimate for the review pass and the list of context that would have been sent. If that looks wrong &mdash; wrong files, missing callers &mdash; fix it here, before spending anything.</p>
 
-      <h2>Add it to GitHub</h2>
+      <h2 id="add-it-to-github">Add it to GitHub<a class="h-anchor" href="#add-it-to-github" aria-label="Link to this section">#</a></h2>
       <p>One workflow file and one repository secret:</p>
       <div class="code-box">
         <pre><code># .github/workflows/groundtruth.yml
@@ -90,7 +89,7 @@ jobs:
 
       <div class="callout ok"><b>Two settings people miss.</b> <code>fetch-depth: 0</code> gives the job the history it needs to diff against the base ref. <code>pull-requests: write</code> lets it post; without it the review runs and then fails at the last step.</div>
 
-      <h2>What happens on the pull request</h2>
+      <h2 id="what-happens-on-the-pull-request">What happens on the pull request<a class="h-anchor" href="#what-happens-on-the-pull-request" aria-label="Link to this section">#</a></h2>
       <p>Two things, and only ever these two:</p>
       <ul>
         <li><b>One summary comment</b>, created on the first run and edited in place on every push after. It never stacks up.</li>
@@ -98,7 +97,7 @@ jobs:
       </ul>
       <p>If nothing clears the quality gate, you get the summary comment saying so and no inline comments at all. That is the normal, intended outcome on a clean diff.</p>
 
-      <h2>Next</h2>
+      <h2 id="next">Next<a class="h-anchor" href="#next" aria-label="Link to this section">#</a></h2>
       <ul>
         <li><a href="configuration.html">Configuration</a> &mdash; every setting, and how to make it quieter or louder.</li>
         <li><a href="what-gets-sent.html">What gets sent to the model</a> &mdash; the answer your security review will ask for.</li>
@@ -109,6 +108,16 @@ jobs:
         <span><a href="configuration.html">Configuration</a> &rarr;</span>
       </div>
     </main>
+    <aside class="toc">
+      <h5>On this page</h5>
+      <ul>
+          <li><a href="#what-you-need">What you need</a></li>
+          <li><a href="#try-it-first-without-a-key">Try it first without a key</a></li>
+          <li><a href="#add-it-to-github">Add it to GitHub</a></li>
+          <li><a href="#what-happens-on-the-pull-request">What happens on the pull request</a></li>
+          <li><a href="#next">Next</a></li>
+      </ul>
+    </aside>
   </div>
 </div>
 
@@ -120,5 +129,6 @@ jobs:
   </p>
 </footer>
 
+<script src="../assets/docs.js"></script>
 </body>
 </html>

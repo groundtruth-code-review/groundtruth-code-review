@@ -43,52 +43,104 @@
     </aside>
 
     <main class="doc-body prose">
+<h1>FAQ</h1>
 
-      <h1>FAQ</h1>
+<details id="does-it-block-merges">
+  <summary>Does it block merges?<a class="h-anchor" href="#does-it-block-merges" aria-label="Link to this question">#</a></summary>
+  <div class="details-body">
+<p>No. It posts comments. The CLI exits non-zero only on an actual error &mdash; a bad config, a git failure, a cost ceiling &mdash; not because it found something. If you want findings to block a merge, gate on the JSON output in a step of your own.</p>
+  </div>
+</details>
 
-      <h2>Does it block merges?</h2>
-      <p>No. It posts comments. The CLI exits non-zero only on an actual error &mdash; a bad config, a git failure, a cost ceiling &mdash; not because it found something. If you want findings to block a merge, gate on the JSON output in a step of your own.</p>
+<details id="will-it-work-on-a-monorepo">
+  <summary>Will it work on a monorepo?<a class="h-anchor" href="#will-it-work-on-a-monorepo" aria-label="Link to this question">#</a></summary>
+  <div class="details-body">
+<p>Yes, and the design assumes it. Review cost scales with the files a pull request changes, not with how large the repository is. The caller search walks the tree, which is where repository size shows up, and it skips vendor directories and anything over 2&nbsp;MB.</p>
+  </div>
+</details>
 
-      <h2>Will it work on a monorepo?</h2>
-      <p>Yes, and the design assumes it. Review cost scales with the files a pull request changes, not with how large the repository is. The caller search walks the tree, which is where repository size shows up, and it skips vendor directories and anything over 2&nbsp;MB.</p>
+<details id="what-happens-on-a-200-file-pull-request">
+  <summary>What happens on a 200-file pull request?<a class="h-anchor" href="#what-happens-on-a-200-file-pull-request" aria-label="Link to this question">#</a></summary>
+  <div class="details-body">
+<p>Stage 4 makes one call per changed file, so that is 200 review calls plus one skeptic call per surviving candidate. That is exactly the situation <code>max_cost_per_run</code> exists for. The reason it is not one giant call: a single pass over a huge diff reports a few obvious things and stops looking, so the fiftieth file would get no real attention.</p>
+  </div>
+</details>
 
-      <h2>What happens on a 200-file pull request?</h2>
-      <p>Stage 4 makes one call per changed file, so that is 200 review calls plus one skeptic call per surviving candidate. That is exactly the situation <code>max_cost_per_run</code> exists for. The reason it is not one giant call: a single pass over a huge diff reports a few obvious things and stops looking, so the fiftieth file would get no real attention.</p>
+<details id="does-it-re-comment-on-every-push">
+  <summary>Does it re-comment on every push?<a class="h-anchor" href="#does-it-re-comment-on-every-push" aria-label="Link to this question">#</a></summary>
+  <div class="details-body">
+<p>No. Every finding gets a fingerprint built from the file, the surrounding code and the category &mdash; deliberately not the model's wording, so rephrasing the same finding does not make it look new. Fingerprints already posted are carried in the summary comment and passed back on the next run.</p>
+  </div>
+</details>
 
-      <h2>Does it re-comment on every push?</h2>
-      <p>No. Every finding gets a fingerprint built from the file, the surrounding code and the category &mdash; deliberately not the model's wording, so rephrasing the same finding does not make it look new. Fingerprints already posted are carried in the summary comment and passed back on the next run.</p>
+<details id="can-i-run-it-with-no-api-cost-at-all">
+  <summary>Can I run it with no API cost at all?<a class="h-anchor" href="#can-i-run-it-with-no-api-cost-at-all" aria-label="Link to this question">#</a></summary>
+  <div class="details-body">
+<p>Yes. Set <code>model: ollama/&lt;model&gt;</code> and every call goes to a local endpoint. No key, no spend, and no code leaves the machine. Review quality then depends on the local model you run.</p>
+  </div>
+</details>
 
-      <h2>Can I run it with no API cost at all?</h2>
-      <p>Yes. Set <code>model: ollama/&lt;model&gt;</code> and every call goes to a local endpoint. No key, no spend, and no code leaves the machine. Review quality then depends on the local model you run.</p>
+<details id="does-it-store-my-code-anywhere">
+  <summary>Does it store my code anywhere?<a class="h-anchor" href="#does-it-store-my-code-anywhere" aria-label="Link to this question">#</a></summary>
+  <div class="details-body">
+<p>No. There is no database, no cache and no service operated by this project. See <a href="what-gets-sent.html">what gets sent to the model</a> for exactly what leaves the repository and where it goes.</p>
+  </div>
+</details>
 
-      <h2>Does it store my code anywhere?</h2>
-      <p>No. There is no database, no cache and no service operated by this project. See <a href="what-gets-sent.html">what gets sent to the model</a> for exactly what leaves the repository and where it goes.</p>
+<details id="how-is-this-different-from-a-linter">
+  <summary>How is this different from a linter?<a class="h-anchor" href="#how-is-this-different-from-a-linter" aria-label="Link to this question">#</a></summary>
+  <div class="details-body">
+<p>A linter matches patterns it was taught in advance, which is why it is fast and deterministic and why it cannot notice that a function's new required argument broke a caller three files away. Groundtruth is built for that second kind of finding. They are complements &mdash; run both.</p>
+  </div>
+</details>
 
-      <h2>How is this different from a linter?</h2>
-      <p>A linter matches patterns it was taught in advance, which is why it is fast and deterministic and why it cannot notice that a function's new required argument broke a caller three files away. Groundtruth is built for that second kind of finding. They are complements &mdash; run both.</p>
+<details id="why-no-vector-database">
+  <summary>Why no vector database?<a class="h-anchor" href="#why-no-vector-database" aria-label="Link to this question">#</a></summary>
+  <div class="details-body">
+<p>Because retrieval guesses. Similarity search returns code that <i>looks</i> related, and a wrong snippet produces a confident, wrong finding &mdash; the exact failure this tool is built to avoid. Parsing the actual function and searching for actual callers is exact, repeatable and free.</p>
+  </div>
+</details>
 
-      <h2>Why no vector database?</h2>
-      <p>Because retrieval guesses. Similarity search returns code that <i>looks</i> related, and a wrong snippet produces a confident, wrong finding &mdash; the exact failure this tool is built to avoid. Parsing the actual function and searching for actual callers is exact, repeatable and free.</p>
+<details id="is-it-deterministic">
+  <summary>Is it deterministic?<a class="h-anchor" href="#is-it-deterministic" aria-label="Link to this question">#</a></summary>
+  <div class="details-body">
+<p>The context is: the same diff assembles the same context every time. The model calls are not, which is the reason the verification stages are ordinary code rather than more model calls. The quote check, the location check, the fingerprint and the ranking give the same answer on every run.</p>
+  </div>
+</details>
 
-      <h2>Is it deterministic?</h2>
-      <p>The context is: the same diff assembles the same context every time. The model calls are not, which is the reason the verification stages are ordinary code rather than more model calls. The quote check, the location check, the fingerprint and the ranking give the same answer on every run.</p>
+<details id="which-model-should-i-use">
+  <summary>Which model should I use?<a class="h-anchor" href="#which-model-should-i-use" aria-label="Link to this question">#</a></summary>
+  <div class="details-body">
+<p>Start with one strong model everywhere, then split the tiers once you see the bill: a strong model on stage 4 where the reasoning happens, a cheap one on stages 5 and 6. A finding that was never proposed cannot be recovered downstream, while a finding that was proposed still has to get past the gate.</p>
+  </div>
+</details>
 
-      <h2>Which model should I use?</h2>
-      <p>Start with one strong model everywhere, then split the tiers once you see the bill: a strong model on stage 4 where the reasoning happens, a cheap one on stages 5 and 6. A finding that was never proposed cannot be recovered downstream, while a finding that was proposed still has to get past the gate.</p>
+<details id="should-the-verifier-be-a-different-model-from-the-reviewer">
+  <summary>Should the verifier be a different model from the reviewer?<a class="h-anchor" href="#should-the-verifier-be-a-different-model-from-the-reviewer" aria-label="Link to this question">#</a></summary>
+  <div class="details-body">
+<p>If you can, yes &mdash; ideally from a different provider. Review with Claude and verify with GPT, or the reverse. The verifier's whole job is to doubt the first model, and a model is a poor judge of mistakes it would make itself. Nothing in the code prefers one arrangement; each stage takes its own model string. See <a href="configuration.html">verify with a different provider</a>, and note that it needs both providers' keys.</p>
+  </div>
+</details>
 
-      <h2>Should the verifier be a different model from the reviewer?</h2>
-      <p>If you can, yes &mdash; ideally from a different provider. Review with Claude and verify with GPT, or the reverse. The verifier's whole job is to doubt the first model, and a model is a poor judge of mistakes it would make itself. Nothing in the code prefers one arrangement; each stage takes its own model string. See <a href="configuration.html">verify with a different provider</a>, and note that it needs both providers' keys.</p>
+<details id="how-mature-is-this">
+  <summary>How mature is this?<a class="h-anchor" href="#how-mature-is-this" aria-label="Link to this question">#</a></summary>
+  <div class="details-body">
+<p>Honestly: alpha. The pipeline, the CLI, the eval harness and three platform adapters are implemented and covered by 190 tests that run offline against fake model clients, plus labeled cases replayed on every build. What that does <i>not</i> prove is behaviour against a live model on your codebase at scale &mdash; no test can. Start it on one repository, read what it posts, and tune <code>min_confidence</code> before you turn it on everywhere.</p>
+  </div>
+</details>
 
-      <h2>How mature is this?</h2>
-      <p>Honestly: alpha. The pipeline, the CLI, the eval harness and three platform adapters are implemented and covered by 190 tests that run offline against fake model clients, plus labeled cases replayed on every build. What that does <i>not</i> prove is behaviour against a live model on your codebase at scale &mdash; no test can. Start it on one repository, read what it posts, and tune <code>min_confidence</code> before you turn it on everywhere.</p>
-
-      <h2>What is still missing?</h2>
-      <p>Publication to PyPI, so installing stops meaning a git URL; and a self-hosted server mode for Bitbucket Data Center, which is the one platform with no free per-pull-request CI container. The <a href="https://github.com/groundtruth-code-review/groundtruth-code-review#roadmap">roadmap</a> is kept current.</p>
+<details id="what-is-still-missing">
+  <summary>What is still missing?<a class="h-anchor" href="#what-is-still-missing" aria-label="Link to this question">#</a></summary>
+  <div class="details-body">
+<p>Publication to PyPI, so installing stops meaning a git URL; and a self-hosted server mode for Bitbucket Data Center, which is the one platform with no free per-pull-request CI container. The <a href="https://github.com/groundtruth-code-review/groundtruth-code-review#roadmap">roadmap</a> is kept current.</p>
+  </div>
+</details>
       <div class="doc-nextprev">
         <span>&larr; <a href="troubleshooting.html">Troubleshooting</a></span>
         <span></span>
       </div>
     </main>
+
   </div>
 </div>
 
@@ -100,5 +152,6 @@
   </p>
 </footer>
 
+<script src="../assets/docs.js"></script>
 </body>
 </html>

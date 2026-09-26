@@ -9,6 +9,8 @@ language, because a docs site this size does not need one and a dependency
 here would have to be installed before anyone could fix a typo.
 """
 
+import html
+import re
 from pathlib import Path
 
 REPO = "https://github.com/groundtruth-code-review/groundtruth-code-review"
@@ -22,6 +24,14 @@ NAV = [
     ("troubleshooting", "Troubleshooting"),
     ("faq", "FAQ"),
 ]
+
+# Pages that are a list of questions rather than a sequence of steps. Each
+# <h2>question</h2> becomes a collapsed <details> -- minimal by default,
+# the full answer on demand -- instead of getting an "on this page" rail:
+# the collapsed questions already are the table of contents for these two.
+QA_PAGES = {"troubleshooting", "faq"}
+
+_H2 = re.compile(r"<h2>(.*?)</h2>", re.DOTALL)
 
 SHELL = """<!doctype html>
 <html lang="en">
@@ -53,7 +63,7 @@ SHELL = """<!doctype html>
 </nav>
 
 <div class="wrap">
-  <div class="doc-layout">
+  <div class="doc-layout{layout_class}">
     <aside class="sidebar">
       <h5>Guide</h5>
       <ul>
@@ -68,6 +78,7 @@ SHELL = """<!doctype html>
         <span>{next}</span>
       </div>
     </main>
+{toc}
   </div>
 </div>
 
@@ -79,6 +90,7 @@ SHELL = """<!doctype html>
   </p>
 </footer>
 
+<script src="../assets/docs.js"></script>
 </body>
 </html>
 """
@@ -638,6 +650,91 @@ def sidebar_html(current: str) -> str:
     return "\n".join(rows)
 
 
+def _slugify(inner_html: str, seen: dict) -> str:
+    """A heading's id, derived from its own text so it can never drift from
+    what's displayed. `seen` de-dupes within one page (unused here, since no
+    page repeats a heading, but a repeat would silently overwrite anchors
+    rather than erroring, which is worse).
+    """
+    plain = html.unescape(re.sub(r"<[^>]+>", "", inner_html))
+    slug = re.sub(r"[^a-z0-9]+", "-", plain.lower()).strip("-") or "section"
+    if slug in seen:
+        seen[slug] += 1
+        slug = f"{slug}-{seen[slug]}"
+    else:
+        seen[slug] = 1
+    return slug
+
+
+def add_heading_anchors(body: str) -> tuple[str, list[tuple[str, str]]]:
+    """Give every <h2> a stable id and a hover permalink, and return
+    (id, label) pairs in document order for the "on this page" rail.
+    """
+    seen: dict = {}
+    toc: list[tuple[str, str]] = []
+
+    def replace(match: re.Match) -> str:
+        inner = match.group(1)
+        slug = _slugify(inner, seen)
+        toc.append((slug, inner))
+        return (
+            f'<h2 id="{slug}">{inner}'
+            f'<a class="h-anchor" href="#{slug}" aria-label="Link to this section">#</a></h2>'
+        )
+
+    return _H2.sub(replace, body), toc
+
+
+def qa_to_details(body: str) -> str:
+    """Turn <h1>...</h1> followed by repeated <h2>question</h2><answer>
+    into one collapsed <details> per question. Minimal by default -- only
+    the questions show -- with the full answer a click away, and each one
+    keeps a stable, linkable id the same way a normal heading would.
+    """
+    head, _, rest = body.partition("</h1>")
+    head += "</h1>"
+
+    chunks = re.split(r"(?=<h2>)", rest)
+    leading, entries = "", chunks
+    if chunks and chunks[0].lstrip().startswith("<h2>"):
+        entries = chunks
+        leading = ""
+    elif chunks:
+        leading, *entries = chunks
+
+    seen: dict = {}
+    out = [head, leading]
+    for chunk in entries:
+        match = re.match(r"<h2>(.*?)</h2>\s*(.*)", chunk, re.DOTALL)
+        if not match:
+            out.append(chunk)
+            continue
+        question, answer = match.group(1), match.group(2).rstrip()
+        slug = _slugify(question, seen)
+        out.append(
+            f'<details id="{slug}">\n'
+            f"  <summary>{question}"
+            f'<a class="h-anchor" href="#{slug}" aria-label="Link to this question">#</a></summary>\n'
+            f'  <div class="details-body">\n{answer}\n  </div>\n'
+            "</details>"
+        )
+    return "\n\n".join(part for part in out if part.strip())
+
+
+def toc_html(entries: list[tuple[str, str]]) -> str:
+    if not entries:
+        return ""
+    items = "\n".join(f'          <li><a href="#{slug}">{label}</a></li>' for slug, label in entries)
+    return (
+        '    <aside class="toc">\n'
+        "      <h5>On this page</h5>\n"
+        "      <ul>\n"
+        f"{items}\n"
+        "      </ul>\n"
+        "    </aside>"
+    )
+
+
 def main() -> None:
     out = Path("guide")
     out.mkdir(exist_ok=True)
@@ -645,6 +742,16 @@ def main() -> None:
 
     for index, (slug, label) in enumerate(NAV):
         description, body = PAGES[slug]
+        body = body.replace("REPOURL", REPO).strip()
+
+        if slug in QA_PAGES:
+            body = qa_to_details(body)
+            rail, layout_class = "", ""
+        else:
+            body, entries = add_heading_anchors(body)
+            rail = toc_html(entries)
+            layout_class = " with-toc" if rail else ""
+
         prev_link = ""
         next_link = ""
         if index > 0:
@@ -658,10 +765,12 @@ def main() -> None:
             title=label,
             description=description,
             sidebar=sidebar_html(slug),
-            body=body.replace("REPOURL", REPO).rstrip(),
+            body=body,
             prev=prev_link,
             next=next_link,
             repo=REPO,
+            toc=rail,
+            layout_class=layout_class,
         )
         (out / f"{slug}.html").write_text(page, encoding="ascii")
         print(f"wrote guide/{slug}.html ({len(page)} bytes)")

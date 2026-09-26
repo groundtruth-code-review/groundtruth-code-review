@@ -452,8 +452,7 @@ Reviewed with `anthropic/claude-sonnet-5` &middot; estimated $0.0032.&lt;/sub&gt
   </div>
 
   <div class="code-box">
-    <button class="copy-btn" type="button" data-copy-target="gh-yaml">Copy</button>
-    <pre id="gh-yaml"><code># .github/workflows/groundtruth.yml
+    <pre><code># .github/workflows/groundtruth.yml
 on: pull_request
 permissions:
   pull-requests: write
@@ -562,25 +561,7 @@ jobs:
   </p>
 </footer>
 
-<script>
-  document.querySelectorAll('.copy-btn').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      var target = document.getElementById(btn.getAttribute('data-copy-target'));
-      if (!target) return;
-      var text = target.textContent;
-      var done = function () {
-        var original = btn.textContent;
-        btn.textContent = 'Copied';
-        setTimeout(function () { btn.textContent = original; }, 1600);
-      };
-      try {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(text).then(done, function () {});
-        }
-      } catch (err) {}
-    });
-  });
-</script>
+<script src="assets/docs.js"></script>
 
 </body>
 </html>

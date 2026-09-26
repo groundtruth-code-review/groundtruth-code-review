@@ -28,7 +28,7 @@
 </nav>
 
 <div class="wrap">
-  <div class="doc-layout">
+  <div class="doc-layout with-toc">
     <aside class="sidebar">
       <h5>Guide</h5>
       <ul>
@@ -43,11 +43,10 @@
     </aside>
 
     <main class="doc-body prose">
-
-      <h1>Integrations</h1>
+<h1>Integrations</h1>
       <p class="doc-lede">Every integration runs the same command and reads the same JSON. What differs between them is how a diff arrives and where comments go &mdash; a few dozen lines of API calls each, nothing more.</p>
 
-      <h2>GitHub</h2>
+      <h2 id="github">GitHub<a class="h-anchor" href="#github" aria-label="Link to this section">#</a></h2>
       <div class="code-box">
         <pre><code># .github/workflows/groundtruth.yml
 on: pull_request
@@ -82,7 +81,7 @@ jobs:
         <li>Findings post as review comments on the line; the summary is an issue comment, edited in place on later pushes.</li>
       </ul>
 
-      <h2>GitLab</h2>
+      <h2 id="gitlab">GitLab<a class="h-anchor" href="#gitlab" aria-label="Link to this section">#</a></h2>
       <p>Copy <code>adapters/gitlab/gitlab-ci.example.yml</code> into your <code>.gitlab-ci.yml</code>.</p>
       <div class="callout"><b>The job token will not work.</b> <code>CI_JOB_TOKEN</code> cannot post notes on a merge request. You need a project access token with the <code>api</code> scope, exposed to the job as <code>GROUNDTRUTH_GITLAB_TOKEN</code>. This is the single most common reason a GitLab setup runs clean and posts nothing.</div>
       <ul>
@@ -91,7 +90,7 @@ jobs:
         <li>The summary is a note, edited in place.</li>
       </ul>
 
-      <h2>Bitbucket Cloud</h2>
+      <h2 id="bitbucket-cloud">Bitbucket Cloud<a class="h-anchor" href="#bitbucket-cloud" aria-label="Link to this section">#</a></h2>
       <p>Copy <code>adapters/bitbucket_cloud/bitbucket-pipelines.example.yml</code> into your <code>bitbucket-pipelines.yml</code>.</p>
       <ul>
         <li>Set <code>clone: depth: full</code>.</li>
@@ -100,7 +99,7 @@ jobs:
         <li>Findings post as inline-anchored comments; the summary is a plain comment on the pull request.</li>
       </ul>
 
-      <h2>Kubernetes, Tekton, Argo, Jenkins</h2>
+      <h2 id="kubernetes-tekton-argo-jenkins">Kubernetes, Tekton, Argo, Jenkins<a class="h-anchor" href="#kubernetes-tekton-argo-jenkins" aria-label="Link to this section">#</a></h2>
       <p>There is no Helm chart, because there is no workload to install &mdash; a review starts, reads a diff and exits. What in-cluster CI needs is the image:</p>
       <div class="code-box">
         <pre><code>image: ghcr.io/groundtruth-code-review/groundtruth-code-review:0.1.0
@@ -112,7 +111,7 @@ env:
       </div>
       <p>The image carries <code>git</code> and <code>ripgrep</code>, runs as an unprivileged user, and ships for both <code>amd64</code> and <code>arm64</code>. Its Dockerfile is multi-stage: the runtime stage installs a wheel that only exists if lint, both test suites and the eval thresholds passed first, so a failing suite cannot produce a shippable image.</p>
 
-      <h2>What every adapter shares</h2>
+      <h2 id="what-every-adapter-shares">What every adapter shares<a class="h-anchor" href="#what-every-adapter-shares" aria-label="Link to this section">#</a></h2>
       <ul>
         <li><b>One JSON contract.</b> Adapters read what <code>groundtruth review --format json</code> prints and nothing else. None of them import the package.</li>
         <li><b>One memory.</b> The fingerprints of everything already posted are carried in a hidden HTML comment inside the summary comment, so the next push does not repeat itself. No database, and it works anywhere comments can be edited.</li>
@@ -123,6 +122,16 @@ env:
         <span><a href="what-gets-sent.html">What gets sent</a> &rarr;</span>
       </div>
     </main>
+    <aside class="toc">
+      <h5>On this page</h5>
+      <ul>
+          <li><a href="#github">GitHub</a></li>
+          <li><a href="#gitlab">GitLab</a></li>
+          <li><a href="#bitbucket-cloud">Bitbucket Cloud</a></li>
+          <li><a href="#kubernetes-tekton-argo-jenkins">Kubernetes, Tekton, Argo, Jenkins</a></li>
+          <li><a href="#what-every-adapter-shares">What every adapter shares</a></li>
+      </ul>
+    </aside>
   </div>
 </div>
 
@@ -134,5 +143,6 @@ env:
   </p>
 </footer>
 
+<script src="../assets/docs.js"></script>
 </body>
 </html>

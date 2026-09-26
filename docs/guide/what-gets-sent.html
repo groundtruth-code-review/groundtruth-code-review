@@ -28,7 +28,7 @@
 </nav>
 
 <div class="wrap">
-  <div class="doc-layout">
+  <div class="doc-layout with-toc">
     <aside class="sidebar">
       <h5>Guide</h5>
       <ul>
@@ -43,11 +43,10 @@
     </aside>
 
     <main class="doc-body prose">
-
-      <h1>What gets sent to the model</h1>
+<h1>What gets sent to the model</h1>
       <p class="doc-lede">This is the question a security review asks first, so here it is precisely, per call, from the code that makes them.</p>
 
-      <h2>Three calls, and what each carries</h2>
+      <h2 id="three-calls-and-what-each-carries">Three calls, and what each carries<a class="h-anchor" href="#three-calls-and-what-each-carries" aria-label="Link to this section">#</a></h2>
       <div class="tablewrap">
         <table>
           <thead><tr><th>Call</th><th>What is in the prompt</th><th>How many</th></tr></thead>
@@ -72,7 +71,7 @@
       </div>
       <p>Stages 1, 2, 3 and 7 make no model call at all. Parsing, the caller search, the quote match, the fingerprinting and the ranking all happen locally.</p>
 
-      <h2>What never leaves</h2>
+      <h2 id="what-never-leaves">What never leaves<a class="h-anchor" href="#what-never-leaves" aria-label="Link to this section">#</a></h2>
       <ul>
         <li><b>Files outside the diff and outside the context bundle.</b> The rest of the repository is never read into a prompt. A file is only included if it was changed, or if it contains a caller of a changed function.</li>
         <li><b>Your key, anywhere but the provider.</b> It is read from the environment and used to authenticate the call to the provider you chose. It is never written to a file, never logged, and the config loader refuses to start if it finds something key-shaped in <code>.groundtruth.yml</code>.</li>
@@ -82,14 +81,14 @@
 
       <div class="callout ok"><b>The cost estimate is local.</b> Token counting and pricing use LiteLLM's local tokenizer and its bundled price table. Estimating a review &mdash; including <code>--dry-run</code> &mdash; makes no network call, which is why a dry run works with no key at all.</div>
 
-      <h2>Where it goes</h2>
+      <h2 id="where-it-goes">Where it goes<a class="h-anchor" href="#where-it-goes" aria-label="Link to this section">#</a></h2>
       <ul>
         <li><b>Straight to your provider</b> by default. Anthropic, OpenAI, Azure, Bedrock &mdash; whichever your <code>model</code> names, called directly from the CI job with your key.</li>
         <li><b>To any endpoint you name</b> with <code>GROUNDTRUTH_BASE_URL</code> or <code>--base-url</code> &mdash; NVIDIA's API catalog, Azure, a model on your own hardware, or a self-hosted LiteLLM proxy. Point it at a proxy you run and nothing talks to a provider except infrastructure you control, which is also where org-wide spend caps and audit logs belong.</li>
         <li><b>Nowhere at all</b> if you point <code>model</code> at <code>ollama/&lt;model&gt;</code>. Every call goes to a local endpoint, no key exists, and no code leaves the machine running the review.</li>
       </ul>
 
-      <h2>Retention</h2>
+      <h2 id="retention">Retention<a class="h-anchor" href="#retention" aria-label="Link to this section">#</a></h2>
       <p>Groundtruth stores nothing. It is a process that starts, reads a diff and exits &mdash; no database, no cache, no artifacts beyond the comments it posts. The one piece of state it keeps between runs is the list of fingerprints in the summary comment on your own pull request, and a fingerprint is a SHA-1 of the file path, the surrounding code and the category &mdash; not the code itself.</p>
       <p>What your provider retains is your provider's policy, and worth reading. If that answer is unacceptable for your codebase, the local-model path exists precisely for that case.</p>
       <div class="doc-nextprev">
@@ -97,6 +96,15 @@
         <span><a href="languages.html">Language support</a> &rarr;</span>
       </div>
     </main>
+    <aside class="toc">
+      <h5>On this page</h5>
+      <ul>
+          <li><a href="#three-calls-and-what-each-carries">Three calls, and what each carries</a></li>
+          <li><a href="#what-never-leaves">What never leaves</a></li>
+          <li><a href="#where-it-goes">Where it goes</a></li>
+          <li><a href="#retention">Retention</a></li>
+      </ul>
+    </aside>
   </div>
 </div>
 
@@ -108,5 +116,6 @@
   </p>
 </footer>
 
+<script src="../assets/docs.js"></script>
 </body>
 </html>

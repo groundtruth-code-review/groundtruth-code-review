@@ -43,12 +43,17 @@
     </aside>
 
     <main class="doc-body prose">
+<h1>Troubleshooting</h1>
 
-      <h1>Troubleshooting</h1>
+
       <p class="doc-lede">Each of these is a real message from the code, with what actually causes it.</p>
 
-      <h2>&ldquo;No findings survived the quality gate&rdquo;</h2>
-      <p>Often correct &mdash; a clean diff should produce silence. To tell a clean diff from a misconfiguration, read the rest of that line:</p>
+      
+
+<details id="no-findings-survived-the-quality-gate">
+  <summary>&ldquo;No findings survived the quality gate&rdquo;<a class="h-anchor" href="#no-findings-survived-the-quality-gate" aria-label="Link to this question">#</a></summary>
+  <div class="details-body">
+<p>Often correct &mdash; a clean diff should produce silence. To tell a clean diff from a misconfiguration, read the rest of that line:</p>
       <div class="code-box">
         <pre><code>No findings survived the quality gate &mdash; 4 dropped (3 low confidence, 1 hallucination).</code></pre>
       </div>
@@ -64,53 +69,112 @@
           </tbody>
         </table>
       </div>
+  </div>
+</details>
 
-      <h2>&ldquo;no changes to review&rdquo;</h2>
-      <p>The diff came back empty. Either the base ref is wrong, or the branch really has no changes against it. On CI, the usual cause is a shallow clone: the job has no base commit, so the diff is empty rather than an error.</p>
+<details id="no-changes-to-review">
+  <summary>&ldquo;no changes to review&rdquo;<a class="h-anchor" href="#no-changes-to-review" aria-label="Link to this question">#</a></summary>
+  <div class="details-body">
+<p>The diff came back empty. Either the base ref is wrong, or the branch really has no changes against it. On CI, the usual cause is a shallow clone: the job has no base commit, so the diff is empty rather than an error.</p>
+  </div>
+</details>
 
-      <h2>&ldquo;git diff ... failed&rdquo;</h2>
-      <p>A <code>GitError</code> carrying git's own message. Almost always a shallow clone. Set <code>fetch-depth: 0</code> on GitHub, <code>GIT_DEPTH: 0</code> on GitLab, or <code>clone: depth: full</code> on Bitbucket.</p>
+<details id="git-diff-failed">
+  <summary>&ldquo;git diff ... failed&rdquo;<a class="h-anchor" href="#git-diff-failed" aria-label="Link to this question">#</a></summary>
+  <div class="details-body">
+<p>A <code>GitError</code> carrying git's own message. Almost always a shallow clone. Set <code>fetch-depth: 0</code> on GitHub, <code>GIT_DEPTH: 0</code> on GitLab, or <code>clone: depth: full</code> on Bitbucket.</p>
+  </div>
+</details>
 
-      <h2>&ldquo;detected dubious ownership&rdquo;</h2>
-      <p>Git refusing to operate on a checkout owned by a different user, which happens when a container runs as a non-root user against a mounted workspace. The published image already marks mounted paths as safe; if you built your own, add <code>git config --system --add safe.directory '*'</code> to it.</p>
+<details id="detected-dubious-ownership">
+  <summary>&ldquo;detected dubious ownership&rdquo;<a class="h-anchor" href="#detected-dubious-ownership" aria-label="Link to this question">#</a></summary>
+  <div class="details-body">
+<p>Git refusing to operate on a checkout owned by a different user, which happens when a container runs as a non-root user against a mounted workspace. The published image already marks mounted paths as safe; if you built your own, add <code>git config --system --add safe.directory '*'</code> to it.</p>
+  </div>
+</details>
 
-      <h2>&ldquo;looks like it contains a live API key&rdquo;</h2>
-      <p>A <code>ConfigError</code>, naming the field. Something key-shaped is in <code>.groundtruth.yml</code>. Move it to an environment variable &mdash; that check is what makes the config file safe to commit, so it fails loudly rather than skipping quietly.</p>
+<details id="looks-like-it-contains-a-live-api-key">
+  <summary>&ldquo;looks like it contains a live API key&rdquo;<a class="h-anchor" href="#looks-like-it-contains-a-live-api-key" aria-label="Link to this question">#</a></summary>
+  <div class="details-body">
+<p>A <code>ConfigError</code>, naming the field. Something key-shaped is in <code>.groundtruth.yml</code>. Move it to an environment variable &mdash; that check is what makes the config file safe to commit, so it fails loudly rather than skipping quietly.</p>
+  </div>
+</details>
 
-      <h2>&ldquo;would set where your API key is sent&rdquo;</h2>
-      <p>A <code>ConfigError</code>: <code>.groundtruth.yml</code> names an endpoint (<code>llm_base_url</code>, <code>base_url</code>, <code>api_base</code>, or a per-stage one). Endpoints are refused in that file because the pull request under review can edit it. Move the value to <code>GROUNDTRUTH_BASE_URL</code> in the environment or <code>--base-url</code> on the command line. See <a href="configuration.html">configuration</a> for why.</p>
+<details id="would-set-where-your-api-key-is-sent">
+  <summary>&ldquo;would set where your API key is sent&rdquo;<a class="h-anchor" href="#would-set-where-your-api-key-is-sent" aria-label="Link to this question">#</a></summary>
+  <div class="details-body">
+<p>A <code>ConfigError</code>: <code>.groundtruth.yml</code> names an endpoint (<code>llm_base_url</code>, <code>base_url</code>, <code>api_base</code>, or a per-stage one). Endpoints are refused in that file because the pull request under review can edit it. Move the value to <code>GROUNDTRUTH_BASE_URL</code> in the environment or <code>--base-url</code> on the command line. See <a href="configuration.html">configuration</a> for why.</p>
+  </div>
+</details>
 
-      <h2>Review calls fail with a reasoning model</h2>
-      <p>The run reports failed calls, but the key and endpoint are right. Reasoning models spend part of <code>max_tokens</code> thinking, so the default 4096 can run out before the JSON is finished &mdash; and a reply cut off mid-object cannot be parsed. Raise it in <code>model_params</code>, and set <code>temperature: 1</code> if the model's own documentation asks for it. See <a href="configuration.html">sampling settings</a>.</p>
+<details id="review-calls-fail-with-a-reasoning-model">
+  <summary>Review calls fail with a reasoning model<a class="h-anchor" href="#review-calls-fail-with-a-reasoning-model" aria-label="Link to this question">#</a></summary>
+  <div class="details-body">
+<p>The run reports failed calls, but the key and endpoint are right. Reasoning models spend part of <code>max_tokens</code> thinking, so the default 4096 can run out before the JSON is finished &mdash; and a reply cut off mid-object cannot be parsed. Raise it in <code>model_params</code>, and set <code>temperature: 1</code> if the model's own documentation asks for it. See <a href="configuration.html">sampling settings</a>.</p>
+  </div>
+</details>
 
-      <h2>&ldquo;is sent to NVIDIA's API catalog but is not prefixed 'nvidia_nim/'&rdquo;</h2>
-      <p>The model name is missing its provider prefix. NVIDIA's ids include their vendor, so <code>openai/gpt-oss-20b</code> is read as provider <code>openai</code>, model <code>gpt-oss-20b</code> &mdash; the wrong provider, the wrong key, and a model NVIDIA does not serve. Put <code>nvidia_nim/</code> in front of the whole id: <code>nvidia_nim/openai/gpt-oss-20b</code>. The error names the corrected spelling.</p>
+<details id="is-sent-to-nvidia-s-api-catalog-but-is-not-prefixed-nvidia-nim">
+  <summary>&ldquo;is sent to NVIDIA's API catalog but is not prefixed 'nvidia_nim/'&rdquo;<a class="h-anchor" href="#is-sent-to-nvidia-s-api-catalog-but-is-not-prefixed-nvidia-nim" aria-label="Link to this question">#</a></summary>
+  <div class="details-body">
+<p>The model name is missing its provider prefix. NVIDIA's ids include their vendor, so <code>openai/gpt-oss-20b</code> is read as provider <code>openai</code>, model <code>gpt-oss-20b</code> &mdash; the wrong provider, the wrong key, and a model NVIDIA does not serve. Put <code>nvidia_nim/</code> in front of the whole id: <code>nvidia_nim/openai/gpt-oss-20b</code>. The error names the corrected spelling.</p>
+  </div>
+</details>
 
-      <h2>Authentication fails against NVIDIA's endpoint</h2>
-      <p>Two usual causes. The key variable is <code>NVIDIA_NIM_API_KEY</code>, not <code>OPENAI_API_KEY</code>, even though the endpoint speaks the OpenAI protocol. And the base URL must be exactly <code>https://integrate.api.nvidia.com/v1</code> &mdash; LiteLLM recognizes it by exact string. Groundtruth trims a trailing slash for you, but a different path will fall back to generic OpenAI handling and read the wrong key.</p>
+<details id="authentication-fails-against-nvidia-s-endpoint">
+  <summary>Authentication fails against NVIDIA's endpoint<a class="h-anchor" href="#authentication-fails-against-nvidia-s-endpoint" aria-label="Link to this question">#</a></summary>
+  <div class="details-body">
+<p>Two usual causes. The key variable is <code>NVIDIA_NIM_API_KEY</code>, not <code>OPENAI_API_KEY</code>, even though the endpoint speaks the OpenAI protocol. And the base URL must be exactly <code>https://integrate.api.nvidia.com/v1</code> &mdash; LiteLLM recognizes it by exact string. Groundtruth trims a trailing slash for you, but a different path will fall back to generic OpenAI handling and read the wrong key.</p>
+  </div>
+</details>
 
-      <h2>&ldquo;estimated cost ... exceeds max_cost_per_run&rdquo;</h2>
-      <p>The run stopped before spending past your ceiling. The message names which phase it stopped at, because the ceiling is re-checked before the verification pass and again before the summary &mdash; the number of those calls is not knowable until the review returns. Raise the ceiling, shrink the diff, or inspect with <code>--dry-run</code>.</p>
+<details id="estimated-cost-exceeds-max-cost-per-run">
+  <summary>&ldquo;estimated cost ... exceeds max_cost_per_run&rdquo;<a class="h-anchor" href="#estimated-cost-exceeds-max-cost-per-run" aria-label="Link to this question">#</a></summary>
+  <div class="details-body">
+<p>The run stopped before spending past your ceiling. The message names which phase it stopped at, because the ceiling is re-checked before the verification pass and again before the summary &mdash; the number of those calls is not knowable until the review returns. Raise the ceiling, shrink the diff, or inspect with <code>--dry-run</code>.</p>
+  </div>
+</details>
 
-      <h2>A finding posted, but no inline comment appeared</h2>
-      <p>The adapter logs a warning and continues. Usually a force-push race: the head commit moved between the review and the post, so the platform no longer considers that line part of the diff. The summary comment still lists the finding. Re-running on the new head resolves it.</p>
+<details id="a-finding-posted-but-no-inline-comment-appeared">
+  <summary>A finding posted, but no inline comment appeared<a class="h-anchor" href="#a-finding-posted-but-no-inline-comment-appeared" aria-label="Link to this question">#</a></summary>
+  <div class="details-body">
+<p>The adapter logs a warning and continues. Usually a force-push race: the head commit moved between the review and the post, so the platform no longer considers that line part of the diff. The summary comment still lists the finding. Re-running on the new head resolves it.</p>
+  </div>
+</details>
 
-      <h2>GitLab runs clean and posts nothing</h2>
-      <p>Almost always the token. <code>CI_JOB_TOKEN</code> cannot post notes on a merge request. Use a project access token with the <code>api</code> scope as <code>GROUNDTRUTH_GITLAB_TOKEN</code>.</p>
+<details id="gitlab-runs-clean-and-posts-nothing">
+  <summary>GitLab runs clean and posts nothing<a class="h-anchor" href="#gitlab-runs-clean-and-posts-nothing" aria-label="Link to this question">#</a></summary>
+  <div class="details-body">
+<p>Almost always the token. <code>CI_JOB_TOKEN</code> cannot post notes on a merge request. Use a project access token with the <code>api</code> scope as <code>GROUNDTRUTH_GITLAB_TOKEN</code>.</p>
+  </div>
+</details>
 
-      <h2>The same comment appeared twice</h2>
-      <p>The review's memory lives in a hidden marker inside its own summary comment. If that comment is deleted, the memory goes with it and the next run has no way to know what it already said. Edit the summary comment freely &mdash; just do not delete it.</p>
+<details id="the-same-comment-appeared-twice">
+  <summary>The same comment appeared twice<a class="h-anchor" href="#the-same-comment-appeared-twice" aria-label="Link to this question">#</a></summary>
+  <div class="details-body">
+<p>The review's memory lives in a hidden marker inside its own summary comment. If that comment is deleted, the memory goes with it and the next run has no way to know what it already said. Edit the summary comment freely &mdash; just do not delete it.</p>
+  </div>
+</details>
 
-      <h2>No caller context, ever</h2>
-      <p>Check your file extension against the <a href="languages.html">18 the caller search covers</a>. Outside that list you get enclosing functions but no cross-file callers.</p>
+<details id="no-caller-context-ever">
+  <summary>No caller context, ever<a class="h-anchor" href="#no-caller-context-ever" aria-label="Link to this question">#</a></summary>
+  <div class="details-body">
+<p>Check your file extension against the <a href="languages.html">18 the caller search covers</a>. Outside that list you get enclosing functions but no cross-file callers.</p>
+  </div>
+</details>
 
-      <h2>It costs more than expected on big pull requests</h2>
-      <p>Stage 4 makes one call per changed file, so cost scales with files touched, not with repository size. A file whose diff exceeds <code>max_diff_tokens_per_call</code> is split into hunk groups, adding calls. Set <code>max_cost_per_run</code> to make that a hard stop rather than a surprise, and split the tiers so only stage 4 uses the expensive model.</p>
+<details id="it-costs-more-than-expected-on-big-pull-requests">
+  <summary>It costs more than expected on big pull requests<a class="h-anchor" href="#it-costs-more-than-expected-on-big-pull-requests" aria-label="Link to this question">#</a></summary>
+  <div class="details-body">
+<p>Stage 4 makes one call per changed file, so cost scales with files touched, not with repository size. A file whose diff exceeds <code>max_diff_tokens_per_call</code> is split into hunk groups, adding calls. Set <code>max_cost_per_run</code> to make that a hard stop rather than a surprise, and split the tiers so only stage 4 uses the expensive model.</p>
+  </div>
+</details>
       <div class="doc-nextprev">
         <span>&larr; <a href="languages.html">Language support</a></span>
         <span><a href="faq.html">FAQ</a> &rarr;</span>
       </div>
     </main>
+
   </div>
 </div>
 
@@ -122,5 +186,6 @@
   </p>
 </footer>
 
+<script src="../assets/docs.js"></script>
 </body>
 </html>

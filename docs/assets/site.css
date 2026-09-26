@@ -295,8 +295,9 @@
     margin: 30px 0 8px;
   }
   pre {
+    position: relative;
     margin: 0 0 16px;
-    padding: 14px 16px;
+    padding: 14px 90px 14px 16px;
     background: var(--surface);
     border: 1px solid var(--hair);
     border-radius: 10px;
@@ -523,9 +524,10 @@
   .feature-card p { font-size: 14.5px; color: var(--soft); margin: 0; line-height: 1.55; }
   .feature-card code { font-size: .84em; }
 
-  /* ---- copyable code block ---- */
-  .code-box { position: relative; max-width: 940px; }
-  .code-box pre { margin: 0; padding-right: 90px; }
+  /* ---- copyable code block ----
+     One script (assets/docs.js) finds every <pre> on every page and drops
+     a button in, so a code block is copyable because it is a code block --
+     nothing upstream has to remember to wrap it or wire a target id. */
   .copy-btn {
     position: absolute; top: 10px; right: 10px;
     font-family: var(--mono); font-size: 11px; letter-spacing: .03em;
@@ -534,6 +536,7 @@
     cursor: pointer;
   }
   .copy-btn:hover { color: var(--text); border-color: var(--accent); }
+  .copy-btn:disabled { cursor: default; color: var(--accent); border-color: var(--accent); }
 
   /* ---- docs layout ---- */
   .doc-layout {
@@ -543,8 +546,16 @@
     align-items: start;
     padding-block: 40px 0;
   }
+  /* a page with enough h2's to jump between gets a third rail; one that
+     doesn't (or is itself a list of collapsed questions) stays 2-column */
+  .doc-layout.with-toc { grid-template-columns: 216px minmax(0, 1fr) 200px; }
+  @media (max-width: 1180px) {
+    .doc-layout.with-toc { grid-template-columns: 216px minmax(0, 1fr); }
+    .toc { display: none; }
+  }
   @media (max-width: 880px) {
     .doc-layout { grid-template-columns: 1fr; gap: 28px; padding-block: 28px 0; }
+    .toc { display: none; }
   }
   .sidebar { position: sticky; top: 76px; }
   @media (max-width: 880px) {
@@ -591,12 +602,28 @@
     margin: 0 0 14px;
   }
   .doc-lede { font-size: 18px; line-height: 1.6; color: var(--soft); margin: 0 0 8px; }
-  .doc-body h2 { margin-top: 48px; padding-top: 24px; font-size: clamp(21px, 2.6vw, 25px); }
+  .doc-body h2 {
+    position: relative;
+    margin-top: 48px;
+    padding-top: 24px;
+    font-size: clamp(21px, 2.6vw, 25px);
+  }
   .doc-body h3 {
     display: block;
     font-size: 17px;
     margin: 30px 0 10px;
   }
+  .h-anchor {
+    margin-left: 8px;
+    font-weight: 400;
+    font-size: .75em;
+    color: var(--muted);
+    text-decoration: none;
+    opacity: 0;
+    transition: opacity .15s;
+  }
+  h2:hover > .h-anchor, summary:hover .h-anchor, .h-anchor:focus-visible { opacity: 1; }
+  .h-anchor:hover { color: var(--accent); }
   .doc-nextprev {
     display: flex;
     justify-content: space-between;
@@ -623,6 +650,68 @@
   }
   .callout b { color: var(--text); }
   .callout.ok { border-left-color: var(--accent); }
+
+  /* ---- on-this-page rail ---- */
+  .toc { position: sticky; top: 76px; font-size: 13.5px; }
+  .toc h5 {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 12px;
+    font-weight: 500;
+  }
+  .toc ul { list-style: none; margin: 0; padding: 0; border-left: 1px solid var(--hair); }
+  .toc li { margin: 0; }
+  .toc a {
+    display: block;
+    padding: 5px 0 5px 14px;
+    margin-left: -1px;
+    border-left: 2px solid transparent;
+    color: var(--muted);
+    text-decoration: none;
+    line-height: 1.4;
+  }
+  .toc a:hover { color: var(--text); }
+  .toc a.active { color: var(--accent); border-left-color: var(--accent); font-weight: 500; }
+
+  /* ---- collapsed Q&A: minimal until asked, full answer on demand ---- */
+  details {
+    border: 1px solid var(--hair);
+    border-radius: 10px;
+    background: var(--surface);
+    margin: 0 0 10px;
+  }
+  details[open] { box-shadow: var(--shadow-sm); }
+  details + h2, details + .callout { margin-top: 40px; }
+  details summary {
+    position: relative;
+    list-style: none;
+    cursor: pointer;
+    padding: 16px 46px 16px 18px;
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 16.5px;
+    line-height: 1.4;
+  }
+  details summary::marker { content: ""; }
+  details summary::-webkit-details-marker { display: none; }
+  details summary::after {
+    content: "+";
+    position: absolute;
+    right: 18px;
+    top: 16px;
+    font-family: var(--mono);
+    font-size: 18px;
+    line-height: 1.3;
+    color: var(--muted);
+  }
+  details[open] summary::after { content: "\2212"; }
+  details summary:hover::after { color: var(--accent); }
+  details .details-body { padding: 0 18px 18px; color: var(--soft); }
+  details .details-body > :last-child { margin-bottom: 0; }
+  details .details-body > :first-child { margin-top: 0; }
 
   table.compact { font-size: 14px; }
   table.compact td:first-child { width: auto; white-space: nowrap; font-family: var(--mono); font-weight: 400; font-size: 13px; }
