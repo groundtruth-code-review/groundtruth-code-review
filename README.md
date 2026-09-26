@@ -294,7 +294,7 @@ your org's LiteLLM proxy — set it in the environment or on the command line:
 export NVIDIA_NIM_API_KEY=...
 export GROUNDTRUTH_BASE_URL=https://integrate.api.nvidia.com/v1
 
-groundtruth review --base main --model nvidia_nim/qwen/qwen2.5-coder-32b-instruct
+groundtruth review --base main --model nvidia_nim/moonshotai/kimi-k3
 ```
 
 Each stage can have its own: `GROUNDTRUTH_BASE_URL` (review, and the

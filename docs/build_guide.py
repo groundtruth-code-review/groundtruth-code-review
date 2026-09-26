@@ -270,7 +270,7 @@ groundtruth eval --live --model anthropic/claude-sonnet-5 \
         <pre><code>export NVIDIA_NIM_API_KEY=...
 export GROUNDTRUTH_BASE_URL=https://integrate.api.nvidia.com/v1
 
-groundtruth review --base main --model nvidia_nim/qwen/qwen2.5-coder-32b-instruct</code></pre>
+groundtruth review --base main --model nvidia_nim/moonshotai/kimi-k3</code></pre>
       </div>
       <p>Use the model id shown on the model's page at build.nvidia.com. Note the key: NVIDIA's endpoint reads <code>NVIDIA_NIM_API_KEY</code>, not <code>OPENAI_API_KEY</code>, even though it speaks the OpenAI protocol.</p>
 

@@ -197,7 +197,7 @@ def test_one_endpoint_serves_every_stage_by_default():
 
 
 def test_review_and_verify_can_live_at_different_endpoints():
-    c = Config(model="anthropic/claude-sonnet-5", verify_model="nvidia_nim/qwen/qwen2.5-coder-32b-instruct",
+    c = Config(model="anthropic/claude-sonnet-5", verify_model="nvidia_nim/moonshotai/kimi-k3",
                verify_base_url="https://integrate.api.nvidia.com/v1")
     assert c.review_base_url is None                      # Anthropic's own default
     assert c.resolved_verify_base_url == "https://integrate.api.nvidia.com/v1"
@@ -206,14 +206,14 @@ def test_review_and_verify_can_live_at_different_endpoints():
 def test_the_summary_follows_the_verifiers_endpoint_when_it_follows_its_model():
     # summary_model is unset, so the summary runs the verifier's model -- and
     # must go to the verifier's endpoint, not send that model to Anthropic
-    c = Config(model="anthropic/claude-sonnet-5", verify_model="nvidia_nim/qwen/qwen2.5-coder-32b-instruct",
+    c = Config(model="anthropic/claude-sonnet-5", verify_model="nvidia_nim/moonshotai/kimi-k3",
                verify_base_url="https://integrate.api.nvidia.com/v1")
     assert c.resolved_summary_model == c.resolved_verify_model
     assert c.resolved_summary_base_url == "https://integrate.api.nvidia.com/v1"
 
 
 def test_a_summary_with_its_own_model_does_not_borrow_the_verifiers_endpoint():
-    c = Config(model="anthropic/claude-sonnet-5", verify_model="nvidia_nim/qwen/qwen2.5-coder-32b-instruct",
+    c = Config(model="anthropic/claude-sonnet-5", verify_model="nvidia_nim/moonshotai/kimi-k3",
                verify_base_url="https://integrate.api.nvidia.com/v1",
                summary_model="anthropic/claude-haiku-4-5-20251001")
     assert c.resolved_summary_base_url is None            # back to Anthropic's default

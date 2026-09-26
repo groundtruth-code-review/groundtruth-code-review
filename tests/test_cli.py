@@ -611,14 +611,14 @@ def test_each_client_is_built_with_the_endpoint_for_its_own_model(repo, monkeypa
     monkeypatch.setattr(cli_module, "LlmClient", RecordingClient)
     repo_path, base_sha = repo
     config = Config(model="anthropic/claude-sonnet-5",
-                    verify_model="nvidia_nim/qwen/qwen2.5-coder-32b-instruct",
+                    verify_model="nvidia_nim/moonshotai/kimi-k3",
                     verify_base_url="https://integrate.api.nvidia.com/v1")
     run_review(repo_path, base=base_sha, head="HEAD", config=config)
 
     nvidia = "https://integrate.api.nvidia.com/v1"
     assert built[0] == ("anthropic/claude-sonnet-5", None)
-    assert built[1] == ("nvidia_nim/qwen/qwen2.5-coder-32b-instruct", nvidia)
-    assert built[2] == ("nvidia_nim/qwen/qwen2.5-coder-32b-instruct", nvidia)
+    assert built[1] == ("nvidia_nim/moonshotai/kimi-k3", nvidia)
+    assert built[2] == ("nvidia_nim/moonshotai/kimi-k3", nvidia)
 
 
 def test_a_cli_flag_overrides_the_environment(monkeypatch):
