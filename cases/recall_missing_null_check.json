@@ -13,7 +13,13 @@
     {
       "file": "profile.py",
       "line": 2,
-      "title_contains": "none"
+      "title_contains": [
+        "none",
+        "null",
+        "attributeerror",
+        "guest",
+        "guard"
+      ]
     }
   ],
   "recorded": {

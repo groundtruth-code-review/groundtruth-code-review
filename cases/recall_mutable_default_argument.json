@@ -13,7 +13,11 @@
     {
       "file": "tags.py",
       "line": 1,
-      "title_contains": "default"
+      "title_contains": [
+        "default",
+        "mutable",
+        "shared"
+      ]
     }
   ],
   "recorded": {

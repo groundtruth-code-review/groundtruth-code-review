@@ -13,7 +13,16 @@
     {
       "file": "pager.py",
       "line": 3,
-      "title_contains": "off-by-one"
+      "title_contains": [
+        "off-by-one",
+        "off by one",
+        "extra item",
+        "one too many",
+        "one extra",
+        "per_page + 1",
+        "slice",
+        "bound"
+      ]
     }
   ],
   "recorded": {

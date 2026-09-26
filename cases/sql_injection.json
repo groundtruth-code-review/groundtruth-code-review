@@ -13,7 +13,15 @@
     {
       "file": "users.py",
       "line": 2,
-      "title_contains": "injection"
+      "title_contains": [
+        "injection",
+        "sql",
+        "concatenat",
+        "unsanitized",
+        "sanitiz",
+        "parameteriz",
+        "untrusted"
+      ]
     }
   ],
   "recorded": {

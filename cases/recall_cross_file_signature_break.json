@@ -14,7 +14,14 @@
     {
       "file": "invoice.py",
       "line": 1,
-      "title_contains": "checkout"
+      "title_contains": [
+        "checkout",
+        "caller",
+        "argument",
+        "promos",
+        "signature",
+        "breaking"
+      ]
     }
   ],
   "recorded": {

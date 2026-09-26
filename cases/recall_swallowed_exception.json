@@ -13,7 +13,16 @@
     {
       "file": "payments.py",
       "line": 4,
-      "title_contains": "swallow"
+      "title_contains": [
+        "swallow",
+        "exception",
+        "silent",
+        "suppress",
+        "hides",
+        "broad",
+        "return none",
+        "returns none"
+      ]
     }
   ],
   "recorded": {

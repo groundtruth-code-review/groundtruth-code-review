@@ -46,25 +46,41 @@ class ExpectedFinding:
     cases "something at this location" is the claim being tested, and
     demanding particular wording from a model would fail the harness on
     rephrasing rather than on substance.
+
+    It accepts several keywords, any one of which counts. A single keyword
+    is one phrasing among many: the first live run marked a correct
+    cross-file finding wrong because the case wanted "checkout" and the
+    model wrote "Missing argument in call to calculate_discount".
     """
 
     file: str
     line: int
-    title_contains: str = ""
+    title_contains: tuple[str, ...] = ()
     # For a gate assertion: the stage that must do the rejecting. Without
     # it, a case built to prove the location check could "pass" because the
     # quote check rejected the finding first -- right outcome, wrong reason,
     # and the location check never tested at all.
     stage: str = ""
 
+    def __post_init__(self):
+        # A bare string would otherwise be iterated one character at a time,
+        # and "any character appears in the title" matches almost anything.
+        value = self.title_contains
+        if isinstance(value, str):
+            value = (value,) if value else ()
+        object.__setattr__(self, "title_contains", tuple(k.lower() for k in value if k))
+
+    def located_at(self, finding: Finding) -> bool:
+        """Right file, line within tolerance -- whatever the wording."""
+        return finding.file == self.file and abs(finding.line - self.line) <= _LINE_TOLERANCE
+
     def matches(self, finding: Finding) -> bool:
-        if finding.file != self.file:
+        if not self.located_at(finding):
             return False
-        if abs(finding.line - self.line) > _LINE_TOLERANCE:
-            return False
-        if self.title_contains and self.title_contains.lower() not in finding.title.lower():
-            return False
-        return True
+        if not self.title_contains:
+            return True
+        title = finding.title.lower()
+        return any(keyword in title for keyword in self.title_contains)
 
 
 def _expected(items: list) -> tuple[ExpectedFinding, ...]:
@@ -72,7 +88,7 @@ def _expected(items: list) -> tuple[ExpectedFinding, ...]:
         ExpectedFinding(
             file=item["file"],
             line=int(item["line"]),
-            title_contains=item.get("title_contains", ""),
+            title_contains=item.get("title_contains", ()),
             stage=item.get("stage", ""),
         )
         for item in items
@@ -139,6 +155,14 @@ class CaseResult:
     # counting it the report would call it a 0% catch rate.
     review_calls: int = 0
     review_failures: int = 0
+    # A finding in the right place whose wording matched no keyword. Still a
+    # miss -- the grade stays conservative -- but not also a false positive:
+    # one finding must not be penalized twice.
+    near_misses: list[tuple[ExpectedFinding, str, str]] = field(default_factory=list)
+    # Everything the gate rejected that matched no expectation. Without this
+    # a "missed" bug is ambiguous: never proposed, or proposed and rejected
+    # under a different title? Those have opposite fixes.
+    other_drops: list[tuple[Finding, str, str]] = field(default_factory=list)
 
     @property
     def expected_total(self) -> int:
@@ -172,6 +196,10 @@ class EvalReport:
     @property
     def gate_held_total(self) -> int:
         return sum(len(case.gate_held) for case in self.cases)
+
+    @property
+    def near_miss_total(self) -> int:
+        return sum(len(case.near_misses) for case in self.cases)
 
     @property
     def review_calls_total(self) -> int:
@@ -314,51 +342,67 @@ def run_case(case: EvalCase, review_llm=None, verify_llm=None, min_confidence: f
         )
 
     posted = [verdict.finding for verdict in report.posted]
+    dropped = list(report.dropped)
     matched_posted: set[int] = set()
+    matched_dropped: set[int] = set()
+
+    def first(items, taken, test):
+        return next((i for i, item in enumerate(items) if i not in taken and test(item)), None)
 
     for expected in case.expected_findings:
-        hit = next(
-            (i for i, finding in enumerate(posted) if i not in matched_posted and expected.matches(finding)),
-            None,
-        )
+        hit = first(posted, matched_posted, expected.matches)
         if hit is not None:
             matched_posted.add(hit)
             result.caught.append(expected)
             continue
 
-        dropped = next(
-            (v for v in report.dropped if expected.matches(v.finding)),
-            None,
-        )
-        if dropped is not None:
-            stage = dropped.dropped_at.value if dropped.dropped_at else "ranked out"
-            result.gated.append((expected, stage))
+        gone = first(dropped, matched_dropped, lambda v: expected.matches(v.finding))
+        if gone is not None:
+            matched_dropped.add(gone)
+            verdict = dropped[gone]
+            result.gated.append((expected, verdict.dropped_at.value if verdict.dropped_at else "ranked out"))
             continue
 
         result.missed.append(expected)
 
+        near = first(posted, matched_posted, expected.located_at)
+        if near is not None:
+            matched_posted.add(near)
+            result.near_misses.append((expected, posted[near].title, "posted"))
+            continue
+        near = first(dropped, matched_dropped, lambda v: expected.located_at(v.finding))
+        if near is not None:
+            matched_dropped.add(near)
+            verdict = dropped[near]
+            stage = verdict.dropped_at.value if verdict.dropped_at else "ranked out"
+            result.near_misses.append((expected, verdict.finding.title, f"dropped: {stage}"))
+
     # Gate assertions: proposed, then correctly rejected. A leak here means
     # something the gate used to stop is now reaching pull requests.
     for expected in case.expect_gated:
-        leaked = next(
-            (i for i, finding in enumerate(posted) if i not in matched_posted and expected.matches(finding)),
-            None,
-        )
+        leaked = first(posted, matched_posted, expected.matches)
         if leaked is not None:
             matched_posted.add(leaked)
             result.gate_leaked.append(expected)
             continue
 
-        dropped = next((v for v in report.dropped if expected.matches(v.finding)), None)
-        if dropped is None:
+        gone = first(dropped, matched_dropped, lambda v: expected.matches(v.finding))
+        if gone is None:
             result.gate_unexercised.append(expected)
             continue
 
-        actual = dropped.dropped_at.value if dropped.dropped_at else "ranked out"
+        matched_dropped.add(gone)
+        verdict = dropped[gone]
+        actual = verdict.dropped_at.value if verdict.dropped_at else "ranked out"
         if expected.stage and actual != expected.stage:
             result.gate_wrong_stage.append((expected, actual))
         else:
             result.gate_held.append(expected)
+
+    result.other_drops = [
+        (v.finding, v.dropped_at.value if v.dropped_at else "ranked out", v.reason)
+        for i, v in enumerate(dropped) if i not in matched_dropped
+    ]
 
     result.false_positives = [
         finding for i, finding in enumerate(posted) if i not in matched_posted
@@ -396,10 +440,26 @@ def render_report(report: EvalReport) -> str:
             lines.append(
                 f"    untested {expected.file}:{expected.line}  (never proposed, so the gate never saw it)"
             )
+        for expected, title, where in case.near_misses:
+            lines.append(
+                f"    near     {expected.file}:{expected.line}  right place, wording matched no "
+                f"keyword ({where}): {title}"
+            )
         for finding in case.false_positives:
             lines.append(f"    false +  {finding.file}:{finding.line}  {finding.title}")
+        for finding, stage, reason in case.other_drops:
+            lines.append(f"    dropped  {finding.file}:{finding.line}  [{stage}] {finding.title}")
+            if reason:
+                lines.append(f"               {reason}")
         lines.append("")
 
+    if report.near_miss_total:
+        lines.append(
+            f"{report.near_miss_total} near miss(es): a finding landed in the right place but its "
+            "wording matched no keyword. Graded as missed -- read the titles above before "
+            "trusting the catch rate."
+        )
+        lines.append("")
     if report.review_failures_total:
         lines.append(
             f"WARNING: {report.review_failures_total} of {report.review_calls_total} review call(s) "
@@ -435,6 +495,14 @@ def report_to_dict(report: EvalReport) -> dict:
                 "gate_held": [f"{e.file}:{e.line}" for e in case.gate_held],
                 "gate_leaked": [f"{e.file}:{e.line}" for e in case.gate_leaked],
                 "gate_unexercised": [f"{e.file}:{e.line}" for e in case.gate_unexercised],
+                "near_misses": [
+                    {"finding": f"{e.file}:{e.line}", "title": t, "where": w}
+                    for e, t, w in case.near_misses
+                ],
+                "other_drops": [
+                    {"file": f.file, "line": f.line, "title": f.title, "stage": st, "reason": r}
+                    for f, st, r in case.other_drops
+                ],
                 "gate_wrong_stage": [
                     {"finding": f"{e.file}:{e.line}", "expected": e.stage, "actual": a}
                     for e, a in case.gate_wrong_stage
@@ -456,6 +524,7 @@ def report_to_dict(report: EvalReport) -> dict:
         "gate_leaked_total": report.gate_leaked_total,
         "gate_unexercised_total": report.gate_unexercised_total,
         "gate_wrong_stage_total": report.gate_wrong_stage_total,
+        "near_miss_total": report.near_miss_total,
         "review_calls_total": report.review_calls_total,
         "review_failures_total": report.review_failures_total,
     }

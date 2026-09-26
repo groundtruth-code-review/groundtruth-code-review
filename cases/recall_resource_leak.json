@@ -13,7 +13,13 @@
     {
       "file": "settings.py",
       "line": 2,
-      "title_contains": "close"
+      "title_contains": [
+        "close",
+        "leak",
+        "context manager",
+        "with open",
+        "handle"
+      ]
     }
   ],
   "recorded": {

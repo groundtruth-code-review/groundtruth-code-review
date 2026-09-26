@@ -13,7 +13,14 @@
     {
       "file": "eligibility.py",
       "line": 2,
-      "title_contains": "18"
+      "title_contains": [
+        "18",
+        ">=",
+        "boundary",
+        "exactly",
+        "equal",
+        "off-by-one"
+      ]
     }
   ],
   "recorded": {

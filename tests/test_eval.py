@@ -370,3 +370,64 @@ def test_live_eval_refuses_a_misprefixed_nvidia_model_before_any_call(tmp_path, 
                  "--base-url", "https://integrate.api.nvidia.com/v1"])
     assert code == 1
     assert "nvidia_nim/openai/gpt-oss-20b" in capsys.readouterr().err
+
+
+# --- grading: wording, near misses, and what the gate dropped -------------
+
+from groundtruth.quality_gate import Finding, Severity  # noqa: E402
+
+
+def _f(file, line, title):
+    return Finding(file=file, line=line, category="correctness", severity=Severity.HIGH,
+                   confidence=0.9, title=title, quoted_code="x" * 10)
+
+
+def test_the_first_live_runs_correct_findings_now_grade_as_caught():
+    # the exact titles gpt-oss-20b wrote on 2026-09-25, which the old
+    # single-keyword cases marked as a miss AND a false positive each
+    cases = {c.name: c for c in load_cases("cases")}
+    cross = cases["recall_cross_file_signature_break"].expected_findings[0]
+    swallow = cases["recall_swallowed_exception"].expected_findings[0]
+    assert cross.matches(_f("invoice.py", 1, "Missing argument in call to calculate_discount"))
+    assert swallow.matches(_f("payments.py", 3,
+                              "Catching broad Exception hides errors and silently returns None"))
+
+
+def test_a_single_keyword_string_still_works_and_is_not_split_into_letters():
+    e = ExpectedFinding("a.py", 1, "injection")
+    assert e.title_contains == ("injection",)
+    # iterated as characters, "any letter appears" would match this
+    assert not e.matches(_f("a.py", 1, "rename variable"))
+
+
+def test_any_one_keyword_is_enough():
+    e = ExpectedFinding("a.py", 1, ("injection", "unsanitized"))
+    assert e.matches(_f("a.py", 1, "Unsanitized input reaches the query"))
+
+
+def test_a_finding_in_the_right_place_with_other_words_is_a_near_miss_not_a_false_positive():
+    # graded conservatively as missed, but never punished twice
+    case = EvalCase(
+        name="n", diff=_DIFF, head_sources={"pager.py": _HEAD},
+        expected_findings=(ExpectedFinding("pager.py", 2, "off-by-one"),),
+        recorded_review={"findings": [{**_GOOD_FINDING, "title": "Pagination returns too much"}]},
+    )
+    result = run_case(case)
+    assert len(result.missed) == 1
+    assert result.false_positives == []
+    assert result.near_misses and result.near_misses[0][1] == "Pagination returns too much"
+
+
+def test_every_dropped_finding_is_reported_with_its_stage_and_reason():
+    # otherwise "missed" cannot tell never-proposed from rejected-under-another-title
+    fabricated = {**_GOOD_FINDING, "file": "pager.py", "line": 2, "title": "Something unrelated",
+                  "quoted_code": "    this line was never written"}
+    case = EvalCase(
+        name="d", diff=_DIFF, head_sources={"pager.py": _HEAD},
+        expected_findings=(),
+        recorded_review={"findings": [fabricated]},
+    )
+    result = run_case(case)
+    finding, stage, reason = result.other_drops[0]
+    assert stage == "hallucination"
+    assert "not found" in reason
