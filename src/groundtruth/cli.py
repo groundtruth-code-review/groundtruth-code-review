@@ -17,7 +17,7 @@ from collections import Counter
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from .config import Config, ConfigError, load_config
+from .config import Config, ConfigError, load_config, normalize_base_url
 from .context_engine import ContextBlock, DiffMap, build_context, parse_diff, render_file_diff
 from .git_source import GitError, git_diff, load_sources
 from .llm import CostEstimate, LlmClient
@@ -266,9 +266,13 @@ def run_review(
     # One injected client stands in for every role (tests, mainly). Left
     # unset, each role gets its own: the tiers are config, and unset tier
     # settings resolve back to the one `model` the user named.
-    review_llm = llm or LlmClient(model=config.review_model, api_base=config.llm_base_url)
-    verify_llm = llm or LlmClient(model=config.resolved_verify_model, api_base=config.llm_base_url)
-    summary_llm = llm or LlmClient(model=config.resolved_summary_model, api_base=config.llm_base_url)
+    review_llm = llm or LlmClient(model=config.review_model, api_base=config.review_base_url)
+    verify_llm = llm or LlmClient(
+        model=config.resolved_verify_model, api_base=config.resolved_verify_base_url
+    )
+    summary_llm = llm or LlmClient(
+        model=config.resolved_summary_model, api_base=config.resolved_summary_base_url
+    )
 
     review_estimate = _estimate_batched_cost(diffmap, ctx.blocks, review_llm, config.dimensions)
 
@@ -476,6 +480,38 @@ def render_text(outcome: ReviewOutcome) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def _apply_endpoint_flags(config: Config, args) -> Config:
+    """CLI flags override the environment. Both are set by whoever runs the
+    command -- the same person holding the key -- which is the point.
+    """
+    updates = {}
+    if getattr(args, "base_url", None):
+        updates["llm_base_url"] = normalize_base_url(args.base_url)
+    if getattr(args, "verify_base_url", None):
+        updates["verify_base_url"] = normalize_base_url(args.verify_base_url)
+    if getattr(args, "summary_base_url", None):
+        updates["summary_base_url"] = normalize_base_url(args.summary_base_url)
+    return replace(config, **updates) if updates else config
+
+
+def _add_endpoint_flags(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--base-url", default=None,
+        help="Endpoint for the review model, e.g. https://integrate.api.nvidia.com/v1 "
+             "or a self-hosted LiteLLM proxy. Also GROUNDTRUTH_BASE_URL.",
+    )
+    parser.add_argument(
+        "--verify-base-url", default=None,
+        help="Endpoint for the verify model, when it lives somewhere else. "
+             "Defaults to --base-url. Also GROUNDTRUTH_VERIFY_BASE_URL.",
+    )
+    parser.add_argument(
+        "--summary-base-url", default=None,
+        help="Endpoint for the summary model. Defaults to wherever its model "
+             "came from. Also GROUNDTRUTH_SUMMARY_BASE_URL.",
+    )
+
+
 def _run_eval(args) -> int:
     """`groundtruth eval` — the measurement CI gates on.
 
@@ -502,16 +538,22 @@ def _run_eval(args) -> int:
             config = replace(config, model=args.model)
         if args.verify_model:
             config = replace(config, verify_model=args.verify_model)
+        config = _apply_endpoint_flags(config, args)
         clients = {
-            "review_llm": LlmClient(model=config.review_model, api_base=config.llm_base_url),
-            "verify_llm": LlmClient(model=config.resolved_verify_model, api_base=config.llm_base_url),
+            "review_llm": LlmClient(model=config.review_model, api_base=config.review_base_url),
+            "verify_llm": LlmClient(
+                model=config.resolved_verify_model, api_base=config.resolved_verify_base_url
+            ),
         }
         # pipeline cases are built around a specific recorded mistake a live
         # model will not reproduce, so they only make sense offline
         cases = [c for c in cases if c.track == "recall"]
         print(
-            f"live eval: {len(cases)} recall case(s), review={config.review_model}, "
-            f"verify={config.resolved_verify_model} -- this makes real, billed model calls",
+            f"live eval: {len(cases)} recall case(s), review={config.review_model}"
+            f"{' @ ' + config.review_base_url if config.review_base_url else ''}, "
+            f"verify={config.resolved_verify_model}"
+            f"{' @ ' + config.resolved_verify_base_url if config.resolved_verify_base_url else ''}"
+            " -- this makes real, billed model calls",
             file=sys.stderr,
         )
 
@@ -595,6 +637,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--no-summary", action="store_true",
         help="Skip the summary call even when the config enables it.",
     )
+    _add_endpoint_flags(review)
 
     evaluate = sub.add_parser(
         "eval", help="Replay labeled cases through the pipeline and grade the result."
@@ -628,6 +671,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Config to take models from in --live mode (default: ./.groundtruth.yml).",
     )
     evaluate.add_argument("--model", default=None, help="Override the review model for --live.")
+    _add_endpoint_flags(evaluate)
     evaluate.add_argument(
         "--verify-model", default=None,
         help="Override the verify model for --live -- e.g. to compare a same-provider "
@@ -656,6 +700,7 @@ def main(argv: list[str] | None = None) -> int:
                 config = replace(config, model=args.model)
             if args.no_summary:
                 config = replace(config, summary=False)
+            config = _apply_endpoint_flags(config, args)
             outcome = run_review(
                 repo=args.repo,
                 base=args.base,

@@ -594,3 +594,42 @@ def test_each_role_is_built_with_its_own_model(repo, monkeypatch):
     assert built[0] == "anthropic/claude-sonnet-5"   # review
     assert built[1] == "openai/gpt-4o-mini"          # verify
     assert built[2] == "openai/gpt-4o-mini"          # summary follows verify
+
+
+def test_each_client_is_built_with_the_endpoint_for_its_own_model(repo, monkeypatch):
+    # the pairing that matters: a model must never be sent to another
+    # provider's endpoint
+    import groundtruth.cli as cli_module
+
+    built = []
+
+    class RecordingClient(FakeLlm):
+        def __init__(self, model, api_base=None, **kwargs):
+            super().__init__(review_response={"findings": [FINDING]})
+            built.append((model, api_base))
+
+    monkeypatch.setattr(cli_module, "LlmClient", RecordingClient)
+    repo_path, base_sha = repo
+    config = Config(model="anthropic/claude-sonnet-5",
+                    verify_model="nvidia_nim/qwen/qwen2.5-coder-32b-instruct",
+                    verify_base_url="https://integrate.api.nvidia.com/v1")
+    run_review(repo_path, base=base_sha, head="HEAD", config=config)
+
+    nvidia = "https://integrate.api.nvidia.com/v1"
+    assert built[0] == ("anthropic/claude-sonnet-5", None)
+    assert built[1] == ("nvidia_nim/qwen/qwen2.5-coder-32b-instruct", nvidia)
+    assert built[2] == ("nvidia_nim/qwen/qwen2.5-coder-32b-instruct", nvidia)
+
+
+def test_a_cli_flag_overrides_the_environment(monkeypatch):
+    from groundtruth.cli import _apply_endpoint_flags, build_arg_parser
+
+    monkeypatch.setenv("GROUNDTRUTH_BASE_URL", "https://from-env")
+    args = build_arg_parser().parse_args(["review", "--base", "main", "--base-url", "https://from-flag/"])
+    config = _apply_endpoint_flags(load_config_for_test(), args)
+    assert config.review_base_url == "https://from-flag"
+
+
+def load_config_for_test():
+    from groundtruth.config import load_config
+    return load_config(None)

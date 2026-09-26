@@ -417,7 +417,7 @@ Reviewed with `anthropic/claude-sonnet-5` &middot; estimated $0.0032.&lt;/sub&gt
     <div class="feature-card">
       <div class="f-num">01</div>
       <h4>Bring your own key, any provider</h4>
-      <p>LiteLLM is embedded as a library. Claude, OpenAI, Azure, Bedrock, or a fully local Ollama model &mdash; the model is one config line, and the key comes from your environment, never a config file.</p>
+      <p>LiteLLM is embedded as a library. Claude, OpenAI, Azure, Bedrock, NVIDIA's API catalog, any OpenAI-compatible endpoint, or a fully local Ollama model. The model is one config line; the key and the endpoint come from your environment, never from a file the pull request can edit.</p>
     </div>
     <div class="feature-card">
       <div class="f-num">02</div>
@@ -532,7 +532,7 @@ jobs:
         </tr>
         <tr>
           <td>Spend governance built into the tool</td>
-          <td>An optional self-hosted LiteLLM proxy, set by one config line</td>
+          <td>An optional self-hosted LiteLLM proxy, set by one environment variable</td>
           <td>Budgets and caps already exist in that open-source proxy; rebuilding them would add no value</td>
         </tr>
         <tr>

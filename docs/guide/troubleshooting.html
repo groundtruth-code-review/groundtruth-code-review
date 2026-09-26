@@ -77,6 +77,12 @@
       <h2>&ldquo;looks like it contains a live API key&rdquo;</h2>
       <p>A <code>ConfigError</code>, naming the field. Something key-shaped is in <code>.groundtruth.yml</code>. Move it to an environment variable &mdash; that check is what makes the config file safe to commit, so it fails loudly rather than skipping quietly.</p>
 
+      <h2>&ldquo;would set where your API key is sent&rdquo;</h2>
+      <p>A <code>ConfigError</code>: <code>.groundtruth.yml</code> names an endpoint (<code>llm_base_url</code>, <code>base_url</code>, <code>api_base</code>, or a per-stage one). Endpoints are refused in that file because the pull request under review can edit it. Move the value to <code>GROUNDTRUTH_BASE_URL</code> in the environment or <code>--base-url</code> on the command line. See <a href="configuration.html">configuration</a> for why.</p>
+
+      <h2>Authentication fails against NVIDIA's endpoint</h2>
+      <p>Two usual causes. The key variable is <code>NVIDIA_NIM_API_KEY</code>, not <code>OPENAI_API_KEY</code>, even though the endpoint speaks the OpenAI protocol. And the base URL must be exactly <code>https://integrate.api.nvidia.com/v1</code> &mdash; LiteLLM recognizes it by exact string. Groundtruth trims a trailing slash for you, but a different path will fall back to generic OpenAI handling and read the wrong key.</p>
+
       <h2>&ldquo;estimated cost ... exceeds max_cost_per_run&rdquo;</h2>
       <p>The run stopped before spending past your ceiling. The message names which phase it stopped at, because the ceiling is re-checked before the verification pass and again before the summary &mdash; the number of those calls is not knowable until the review returns. Raise the ceiling, shrink the diff, or inspect with <code>--dry-run</code>.</p>
 

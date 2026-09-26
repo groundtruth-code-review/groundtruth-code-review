@@ -180,9 +180,7 @@ dimensions: [correctness, security, conventions]
 # verify_model: anthropic/claude-haiku-4-5-20251001
 # summary_model: anthropic/claude-haiku-4-5-20251001
 
-# Optional: route every call through your own LiteLLM proxy instead of
-# calling the provider directly.
-# llm_base_url: https://litellm.your-org.internal</code></pre>
+# Endpoints are NOT set here -- see "Endpoints" below.</code></pre>
       </div>
 
       <h2>Every setting</h2>
@@ -193,7 +191,6 @@ dimensions: [correctness, security, conventions]
             <tr><td>model</td><td>anthropic/claude-sonnet-5</td><td>Any LiteLLM model string. The provider prefix decides which environment variable is read for the key.</td></tr>
             <tr><td>verify_model</td><td>same as model</td><td>Model for the skeptic pass. Can be a different provider from <code>model</code> &mdash; and there is a good reason for it to be.</td></tr>
             <tr><td>summary_model</td><td>same as verify_model</td><td>Model for the summary call.</td></tr>
-            <tr><td>llm_base_url</td><td>unset</td><td>Send every call to your own LiteLLM proxy instead of the provider. Unset calls the provider directly.</td></tr>
             <tr><td>max_cost_per_run</td><td>unset</td><td>Ceiling in USD for the whole run. Re-checked before the verification pass and again before the summary, because the number of those calls is not known until the review returns.</td></tr>
             <tr><td>min_confidence</td><td>0.7</td><td>Combined confidence (reviewer &times; skeptic) a finding must reach to post.</td></tr>
             <tr><td>max_inline_comments</td><td>10</td><td>How many findings can post. Survivors are ranked by severity &times; confidence and the rest are cut.</td></tr>
@@ -254,6 +251,42 @@ groundtruth eval --live --model anthropic/claude-sonnet-5 \
       </div>
       <p>Compare the catch rate and the false positives. These are real, billed calls, and a handful of cases will not settle the question on their own &mdash; but it is a measurement rather than an argument.</p>
 
+      <h2>Endpoints</h2>
+      <p>By default each model is called at its provider's own endpoint. To send a stage somewhere else &mdash; NVIDIA's API catalog, Azure, a model on your own GPUs, or your org's LiteLLM proxy &mdash; set its endpoint in the environment or on the command line:</p>
+      <div class="tablewrap">
+        <table class="compact">
+          <thead><tr><th>Stage</th><th>Environment variable</th><th>Flag</th></tr></thead>
+          <tbody>
+            <tr><td>review (and default)</td><td>GROUNDTRUTH_BASE_URL</td><td>--base-url</td></tr>
+            <tr><td>verify</td><td>GROUNDTRUTH_VERIFY_BASE_URL</td><td>--verify-base-url</td></tr>
+            <tr><td>summary</td><td>GROUNDTRUTH_SUMMARY_BASE_URL</td><td>--summary-base-url</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Flags beat the environment. An endpoint follows the model it serves: when the summary inherits the verifier's model it inherits the verifier's endpoint too, so a model is never sent to another provider's server.</p>
+
+      <h3>Example: NVIDIA's API catalog</h3>
+      <div class="code-box">
+        <pre><code>export NVIDIA_NIM_API_KEY=...
+export GROUNDTRUTH_BASE_URL=https://integrate.api.nvidia.com/v1
+
+groundtruth review --base main --model nvidia_nim/qwen/qwen2.5-coder-32b-instruct</code></pre>
+      </div>
+      <p>Use the model id shown on the model's page at build.nvidia.com. Note the key: NVIDIA's endpoint reads <code>NVIDIA_NIM_API_KEY</code>, not <code>OPENAI_API_KEY</code>, even though it speaks the OpenAI protocol.</p>
+
+      <h3>Example: Claude reviews, a model on NVIDIA verifies</h3>
+      <div class="code-box">
+        <pre><code>export ANTHROPIC_API_KEY=...
+export NVIDIA_NIM_API_KEY=...
+
+groundtruth review --base main \
+  --model anthropic/claude-sonnet-5 \
+  --verify-base-url https://integrate.api.nvidia.com/v1</code></pre>
+      </div>
+      <p>with <code>verify_model: nvidia_nim/&lt;model&gt;</code> in <code>.groundtruth.yml</code>. The review goes to Anthropic, the verification to NVIDIA, and the summary follows the verifier.</p>
+
+      <div class="callout"><b>Why endpoints are never in <code>.groundtruth.yml</code>.</b> An endpoint decides which server receives your API key along with your code, and that file lives in the repository being reviewed &mdash; the pull request under review can edit it. Review bots are commonly run on <code>pull_request_target</code> so they can comment on forks, and that trigger gives the job your secrets. A fork that pointed the endpoint at its own server would collect your key on the first call. So the file refuses to load if it names an endpoint, and endpoints come from the same place keys do: whoever owns the key decides where it goes.</div>
+
       <h2>Flags that override the file</h2>
       <div class="tablewrap">
         <table class="compact">
@@ -294,6 +327,12 @@ jobs:
         with: { model: anthropic/claude-sonnet-5 }
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}</code></pre>
+      </div>
+      <p>To use a different endpoint, set it in the workflow's <code>env</code> beside the key it goes with:</p>
+      <div class="code-box">
+        <pre><code>        env:
+          NVIDIA_NIM_API_KEY: ${{ secrets.NVIDIA_NIM_API_KEY }}
+          GROUNDTRUTH_BASE_URL: https://integrate.api.nvidia.com/v1</code></pre>
       </div>
       <p>To verify with a different provider, set <code>verify_model</code> in <code>.groundtruth.yml</code> and pass both keys:</p>
       <div class="code-box">
@@ -382,6 +421,7 @@ PAGES["what-gets-sent"] = (
       <ul>
         <li><b>Files outside the diff and outside the context bundle.</b> The rest of the repository is never read into a prompt. A file is only included if it was changed, or if it contains a caller of a changed function.</li>
         <li><b>Your key, anywhere but the provider.</b> It is read from the environment and used to authenticate the call to the provider you chose. It is never written to a file, never logged, and the config loader refuses to start if it finds something key-shaped in <code>.groundtruth.yml</code>.</li>
+        <li><b>To a server the reviewed code chooses.</b> The endpoint cannot be set from <code>.groundtruth.yml</code>, because that file can be edited by the pull request under review. Only the environment and the command line &mdash; the place your key lives &mdash; can say where requests go.</li>
         <li><b>Telemetry.</b> There is none. There is no service operated by this project for anything to be sent to &mdash; no accounts, no hosted component, no phone-home.</li>
       </ul>
 
@@ -390,7 +430,7 @@ PAGES["what-gets-sent"] = (
       <h2>Where it goes</h2>
       <ul>
         <li><b>Straight to your provider</b> by default. Anthropic, OpenAI, Azure, Bedrock &mdash; whichever your <code>model</code> names, called directly from the CI job with your key.</li>
-        <li><b>Through your own proxy</b> if you set <code>llm_base_url</code> to a self-hosted LiteLLM instance. Nothing then talks to a provider except infrastructure you run, which is also where org-wide spend caps and audit logs belong.</li>
+        <li><b>To any endpoint you name</b> with <code>GROUNDTRUTH_BASE_URL</code> or <code>--base-url</code> &mdash; NVIDIA's API catalog, Azure, a model on your own hardware, or a self-hosted LiteLLM proxy. Point it at a proxy you run and nothing talks to a provider except infrastructure you control, which is also where org-wide spend caps and audit logs belong.</li>
         <li><b>Nowhere at all</b> if you point <code>model</code> at <code>ollama/&lt;model&gt;</code>. Every call goes to a local endpoint, no key exists, and no code leaves the machine running the review.</li>
       </ul>
 
@@ -487,6 +527,12 @@ PAGES["troubleshooting"] = (
 
       <h2>&ldquo;looks like it contains a live API key&rdquo;</h2>
       <p>A <code>ConfigError</code>, naming the field. Something key-shaped is in <code>.groundtruth.yml</code>. Move it to an environment variable &mdash; that check is what makes the config file safe to commit, so it fails loudly rather than skipping quietly.</p>
+
+      <h2>&ldquo;would set where your API key is sent&rdquo;</h2>
+      <p>A <code>ConfigError</code>: <code>.groundtruth.yml</code> names an endpoint (<code>llm_base_url</code>, <code>base_url</code>, <code>api_base</code>, or a per-stage one). Endpoints are refused in that file because the pull request under review can edit it. Move the value to <code>GROUNDTRUTH_BASE_URL</code> in the environment or <code>--base-url</code> on the command line. See <a href="configuration.html">configuration</a> for why.</p>
+
+      <h2>Authentication fails against NVIDIA's endpoint</h2>
+      <p>Two usual causes. The key variable is <code>NVIDIA_NIM_API_KEY</code>, not <code>OPENAI_API_KEY</code>, even though the endpoint speaks the OpenAI protocol. And the base URL must be exactly <code>https://integrate.api.nvidia.com/v1</code> &mdash; LiteLLM recognizes it by exact string. Groundtruth trims a trailing slash for you, but a different path will fall back to generic OpenAI handling and read the wrong key.</p>
 
       <h2>&ldquo;estimated cost ... exceeds max_cost_per_run&rdquo;</h2>
       <p>The run stopped before spending past your ceiling. The message names which phase it stopped at, because the ceiling is re-checked before the verification pass and again before the summary &mdash; the number of those calls is not knowable until the review returns. Raise the ceiling, shrink the diff, or inspect with <code>--dry-run</code>.</p>

@@ -76,6 +76,7 @@
       <ul>
         <li><b>Files outside the diff and outside the context bundle.</b> The rest of the repository is never read into a prompt. A file is only included if it was changed, or if it contains a caller of a changed function.</li>
         <li><b>Your key, anywhere but the provider.</b> It is read from the environment and used to authenticate the call to the provider you chose. It is never written to a file, never logged, and the config loader refuses to start if it finds something key-shaped in <code>.groundtruth.yml</code>.</li>
+        <li><b>To a server the reviewed code chooses.</b> The endpoint cannot be set from <code>.groundtruth.yml</code>, because that file can be edited by the pull request under review. Only the environment and the command line &mdash; the place your key lives &mdash; can say where requests go.</li>
         <li><b>Telemetry.</b> There is none. There is no service operated by this project for anything to be sent to &mdash; no accounts, no hosted component, no phone-home.</li>
       </ul>
 
@@ -84,7 +85,7 @@
       <h2>Where it goes</h2>
       <ul>
         <li><b>Straight to your provider</b> by default. Anthropic, OpenAI, Azure, Bedrock &mdash; whichever your <code>model</code> names, called directly from the CI job with your key.</li>
-        <li><b>Through your own proxy</b> if you set <code>llm_base_url</code> to a self-hosted LiteLLM instance. Nothing then talks to a provider except infrastructure you run, which is also where org-wide spend caps and audit logs belong.</li>
+        <li><b>To any endpoint you name</b> with <code>GROUNDTRUTH_BASE_URL</code> or <code>--base-url</code> &mdash; NVIDIA's API catalog, Azure, a model on your own hardware, or a self-hosted LiteLLM proxy. Point it at a proxy you run and nothing talks to a provider except infrastructure you control, which is also where org-wide spend caps and audit logs belong.</li>
         <li><b>Nowhere at all</b> if you point <code>model</code> at <code>ollama/&lt;model&gt;</code>. Every call goes to a local endpoint, no key exists, and no code leaves the machine running the review.</li>
       </ul>
 

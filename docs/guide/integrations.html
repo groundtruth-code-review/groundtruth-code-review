@@ -64,6 +64,12 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}</code></pre>
       </div>
+      <p>To use a different endpoint, set it in the workflow's <code>env</code> beside the key it goes with:</p>
+      <div class="code-box">
+        <pre><code>        env:
+          NVIDIA_NIM_API_KEY: ${{ secrets.NVIDIA_NIM_API_KEY }}
+          GROUNDTRUTH_BASE_URL: https://integrate.api.nvidia.com/v1</code></pre>
+      </div>
       <p>To verify with a different provider, set <code>verify_model</code> in <code>.groundtruth.yml</code> and pass both keys:</p>
       <div class="code-box">
         <pre><code>        env:

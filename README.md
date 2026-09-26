@@ -282,9 +282,35 @@ dimensions: [correctness, security, conventions]
 # The verifier can be a different provider entirely. Claude proposes and GPT
 # cross-examines, or the other way round — set both providers' keys.
 # verify_model: openai/gpt-4o-mini
-
-# llm_base_url: https://litellm.your-org.internal   # org mode — see docs
 ```
+
+### Endpoints
+
+By default each model is called at its provider's own endpoint. To send a
+stage somewhere else — NVIDIA's API catalog, Azure, a self-hosted model, or
+your org's LiteLLM proxy — set it in the environment or on the command line:
+
+```bash
+export NVIDIA_NIM_API_KEY=...
+export GROUNDTRUTH_BASE_URL=https://integrate.api.nvidia.com/v1
+
+groundtruth review --base main --model nvidia_nim/qwen/qwen2.5-coder-32b-instruct
+```
+
+Each stage can have its own: `GROUNDTRUTH_BASE_URL` (review, and the
+default for all), `GROUNDTRUTH_VERIFY_BASE_URL`, `GROUNDTRUTH_SUMMARY_BASE_URL`,
+or `--base-url` / `--verify-base-url` / `--summary-base-url`. Flags beat the
+environment. An endpoint follows the model it serves: if the summary inherits
+the verifier's model, it inherits the verifier's endpoint too.
+
+**Endpoints are never read from `.groundtruth.yml`, and it refuses to load if
+one is there.** An endpoint decides which server receives your API key along
+with your code, and that file is in the repository under review — so the pull
+request being reviewed can edit it. A review bot run on `pull_request_target`
+(common, because it's how a bot comments on forks) hands the job your
+secrets, and a fork that pointed the endpoint at its own server would collect
+your key on the first call. So endpoints come from the same place keys do:
+whoever owns the key sets where it goes.
 
 **Verify with a different provider.** The skeptic pass exists to be a second
 opinion, and a second opinion from the same model isn't much of one — two

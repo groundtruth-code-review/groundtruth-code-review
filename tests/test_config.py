@@ -1,6 +1,14 @@
 import pytest
 
-from groundtruth.config import Config, ConfigError, load_config
+from groundtruth.config import (
+    ENV_BASE_URL,
+    ENV_SUMMARY_BASE_URL,
+    ENV_VERIFY_BASE_URL,
+    Config,
+    ConfigError,
+    load_config,
+    normalize_base_url,
+)
 
 
 def test_missing_config_file_returns_defaults(tmp_path):
@@ -136,3 +144,90 @@ def test_three_providers_can_share_one_run(tmp_path):
         config.review_model, config.resolved_verify_model, config.resolved_summary_model
     )}
     assert providers == {"openai", "anthropic", "ollama"}
+
+
+# --- endpoints never come from the reviewed repository -------------------
+
+
+@pytest.mark.parametrize(
+    "key", ["llm_base_url", "base_url", "api_base", "verify_base_url", "summary_base_url"]
+)
+def test_an_endpoint_in_the_config_file_is_refused(tmp_path, key):
+    # the pull request under review can edit this file; an endpoint here
+    # would let it choose which server receives your API key
+    path = tmp_path / ".groundtruth.yml"
+    path.write_text(f"model: openai/gpt-4o\n{key}: https://attacker.example/v1\n")
+    with pytest.raises(ConfigError) as exc:
+        load_config(path)
+    assert "pull request" in str(exc.value)
+    assert ENV_BASE_URL in str(exc.value)
+
+
+def test_endpoints_come_from_the_environment(tmp_path, monkeypatch):
+    monkeypatch.setenv(ENV_BASE_URL, "https://integrate.api.nvidia.com/v1")
+    config = load_config(tmp_path / "missing.yml")
+    assert config.review_base_url == "https://integrate.api.nvidia.com/v1"
+
+
+def test_the_environment_applies_even_with_no_config_file(monkeypatch):
+    # a repository that never added .groundtruth.yml still gets the endpoint
+    # its CI sets
+    monkeypatch.setenv(ENV_VERIFY_BASE_URL, "https://integrate.api.nvidia.com/v1")
+    assert load_config(None).resolved_verify_base_url == "https://integrate.api.nvidia.com/v1"
+
+
+@pytest.mark.parametrize("raw, expected", [
+    ("https://integrate.api.nvidia.com/v1/", "https://integrate.api.nvidia.com/v1"),
+    ("  https://litellm.internal/  ", "https://litellm.internal"),
+    ("", None),
+    ("   ", None),
+    (None, None),
+])
+def test_a_trailing_slash_is_trimmed(raw, expected):
+    # LiteLLM routes NVIDIA's endpoint to its own provider and key only on an
+    # exact match; "/v1/" silently falls back to OpenAI and the wrong key
+    assert normalize_base_url(raw) == expected
+
+
+# --- each endpoint follows the model it serves ----------------------------
+
+def test_one_endpoint_serves_every_stage_by_default():
+    c = Config(llm_base_url="https://proxy.internal")
+    assert c.review_base_url == c.resolved_verify_base_url == c.resolved_summary_base_url == "https://proxy.internal"
+
+
+def test_review_and_verify_can_live_at_different_endpoints():
+    c = Config(model="anthropic/claude-sonnet-5", verify_model="nvidia_nim/qwen/qwen2.5-coder-32b-instruct",
+               verify_base_url="https://integrate.api.nvidia.com/v1")
+    assert c.review_base_url is None                      # Anthropic's own default
+    assert c.resolved_verify_base_url == "https://integrate.api.nvidia.com/v1"
+
+
+def test_the_summary_follows_the_verifiers_endpoint_when_it_follows_its_model():
+    # summary_model is unset, so the summary runs the verifier's model -- and
+    # must go to the verifier's endpoint, not send that model to Anthropic
+    c = Config(model="anthropic/claude-sonnet-5", verify_model="nvidia_nim/qwen/qwen2.5-coder-32b-instruct",
+               verify_base_url="https://integrate.api.nvidia.com/v1")
+    assert c.resolved_summary_model == c.resolved_verify_model
+    assert c.resolved_summary_base_url == "https://integrate.api.nvidia.com/v1"
+
+
+def test_a_summary_with_its_own_model_does_not_borrow_the_verifiers_endpoint():
+    c = Config(model="anthropic/claude-sonnet-5", verify_model="nvidia_nim/qwen/qwen2.5-coder-32b-instruct",
+               verify_base_url="https://integrate.api.nvidia.com/v1",
+               summary_model="anthropic/claude-haiku-4-5-20251001")
+    assert c.resolved_summary_base_url is None            # back to Anthropic's default
+
+
+def test_an_explicit_summary_endpoint_always_wins():
+    c = Config(llm_base_url="https://a", verify_base_url="https://b", summary_base_url="https://c")
+    assert c.resolved_summary_base_url == "https://c"
+
+
+def test_each_variable_sets_its_own_stage(monkeypatch):
+    monkeypatch.setenv(ENV_BASE_URL, "https://a")
+    monkeypatch.setenv(ENV_VERIFY_BASE_URL, "https://b")
+    monkeypatch.setenv(ENV_SUMMARY_BASE_URL, "https://c")
+    c = load_config(None)
+    assert (c.review_base_url, c.resolved_verify_base_url, c.resolved_summary_base_url) == (
+        "https://a", "https://b", "https://c")

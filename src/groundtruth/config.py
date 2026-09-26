@@ -1,14 +1,25 @@
-"""Load `.groundtruth.yml` — and enforce the one hard rule about it: this
-file can never hold a key. That's not a style preference, it's what makes
-the file safe to commit at all. A config that *could* hold a secret is a
-config someone eventually commits by accident; a config that structurally
-can't is one nobody has to remember not to.
+"""Load `.groundtruth.yml` — and enforce the two hard rules about it.
+
+1. It can never hold a key. That is what makes the file safe to commit: a
+   config that *could* hold a secret is one someone eventually commits by
+   accident; a config that structurally can't is one nobody has to remember
+   not to.
+
+2. It can never say where a key is sent. An endpoint decides which server
+   receives your API key along with your code, and this file lives in the
+   repository under review -- so the pull request being reviewed can edit
+   it. Review bots are commonly run on `pull_request_target` so they can
+   comment on forks, which hands the job your secrets; a fork that pointed
+   the endpoint at its own server would collect your key on the first call.
+   Endpoints therefore come from the same place keys do: environment
+   variables and CLI flags, set by whoever owns the key.
 """
 
 from __future__ import annotations
 
+import os
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import yaml
@@ -24,8 +35,35 @@ _DEFAULT_DIMENSIONS = ["correctness", "security", "conventions"]
 _KEY_LIKE_RE = re.compile(r"\b(sk-[A-Za-z0-9_-]{10,}|[A-Za-z0-9_-]{32,})\b")
 
 
+# Keys in the file that would decide where a request -- and its API key --
+# is sent. Rejected by name rather than ignored, so a stale config fails
+# loudly instead of quietly calling the wrong server.
+_ENDPOINT_KEYS = ("llm_base_url", "base_url", "api_base", "verify_base_url", "summary_base_url")
+
+# Environment variables an endpoint can be set from, per stage.
+ENV_BASE_URL = "GROUNDTRUTH_BASE_URL"
+ENV_VERIFY_BASE_URL = "GROUNDTRUTH_VERIFY_BASE_URL"
+ENV_SUMMARY_BASE_URL = "GROUNDTRUTH_SUMMARY_BASE_URL"
+
+
 class ConfigError(ValueError):
     pass
+
+
+def normalize_base_url(url: str | None) -> str | None:
+    """Trim whitespace and a trailing slash, and treat empty as unset.
+
+    The slash is not cosmetic. LiteLLM recognizes some hosted endpoints by
+    exact string -- NVIDIA's API catalog at https://integrate.api.nvidia.com/v1
+    is routed to its own provider and key only on that exact spelling. With
+    a trailing slash the match fails, the request falls back to generic
+    OpenAI handling, reads the wrong key, and fails with an authentication
+    error that points nowhere near the actual cause.
+    """
+    if url is None:
+        return None
+    url = url.strip().rstrip("/")
+    return url or None
 
 
 @dataclass(frozen=True)
@@ -33,7 +71,11 @@ class Config:
     model: str = "anthropic/claude-sonnet-5"
     verify_model: str | None = None
     summary_model: str | None = None
+    # Endpoints, per stage. Never read from the config file; see the module
+    # docstring for why. Unset means "call the provider's own default".
     llm_base_url: str | None = None
+    verify_base_url: str | None = None
+    summary_base_url: str | None = None
     max_cost_per_run: float | None = None
     min_confidence: float = 0.7
     max_inline_comments: int = 10
@@ -60,6 +102,53 @@ class Config:
     def resolved_summary_model(self) -> str:
         return self.summary_model or self.verify_model or self.model
 
+    # An endpoint belongs to the model it serves, so each one resolves along
+    # the same path its stage's model does. The case this exists for: review
+    # on Claude, verify on a model behind NVIDIA's endpoint, summary unset.
+    # The summary inherits the verifier's *model*, so it must inherit the
+    # verifier's *endpoint* too -- falling back to the review endpoint would
+    # send an NVIDIA model name to Anthropic.
+
+    @property
+    def review_base_url(self) -> str | None:
+        return self.llm_base_url
+
+    @property
+    def resolved_verify_base_url(self) -> str | None:
+        return self.verify_base_url or self.llm_base_url
+
+    @property
+    def resolved_summary_base_url(self) -> str | None:
+        if self.summary_base_url:
+            return self.summary_base_url
+        if self.summary_model:
+            return self.llm_base_url
+        return self.resolved_verify_base_url
+
+
+def endpoints_from_env(config: Config) -> Config:
+    """Apply endpoints from the environment. Anything set here overrides
+    nothing in the file -- the file cannot set endpoints -- and is itself
+    overridden by CLI flags, which the caller applies afterwards.
+    """
+    return replace(
+        config,
+        llm_base_url=normalize_base_url(os.environ.get(ENV_BASE_URL)) or config.llm_base_url,
+        verify_base_url=normalize_base_url(os.environ.get(ENV_VERIFY_BASE_URL)) or config.verify_base_url,
+        summary_base_url=normalize_base_url(os.environ.get(ENV_SUMMARY_BASE_URL)) or config.summary_base_url,
+    )
+
+
+def _reject_endpoints(data: dict, source: str) -> None:
+    for key in _ENDPOINT_KEYS:
+        if key in data:
+            raise ConfigError(
+                f"'{key}' in {source} would set where your API key is sent, and this file can be "
+                "changed by the pull request being reviewed. Set the endpoint where the key lives "
+                f"instead: {ENV_BASE_URL} (or {ENV_VERIFY_BASE_URL} / {ENV_SUMMARY_BASE_URL}) "
+                "in the environment, or --base-url on the command line."
+            )
+
 
 def _reject_embedded_keys(data: dict, source: str) -> None:
     for key, value in data.items():
@@ -72,23 +161,27 @@ def _reject_embedded_keys(data: dict, source: str) -> None:
 
 
 def load_config(path: Path | str | None) -> Config:
+    """Read the file, then the environment. The environment is applied even
+    when there is no file at all, so an endpoint set in CI works for a
+    repository that never added a `.groundtruth.yml`.
+    """
     defaults = Config()
     if path is None:
-        return defaults
+        return endpoints_from_env(defaults)
     path = Path(path)
     if not path.exists():
-        return defaults
+        return endpoints_from_env(defaults)
 
     raw = yaml.safe_load(path.read_text()) or {}
     if not isinstance(raw, dict):
         raise ConfigError(f"{path} must be a YAML mapping, not a {type(raw).__name__}")
     _reject_embedded_keys(raw, str(path))
+    _reject_endpoints(raw, str(path))
 
-    return Config(
+    config = Config(
         model=raw.get("model", defaults.model),
         verify_model=raw.get("verify_model", defaults.verify_model),
         summary_model=raw.get("summary_model", defaults.summary_model),
-        llm_base_url=raw.get("llm_base_url", defaults.llm_base_url),
         max_cost_per_run=raw.get("max_cost_per_run", defaults.max_cost_per_run),
         min_confidence=raw.get("min_confidence", defaults.min_confidence),
         max_inline_comments=raw.get("max_inline_comments", defaults.max_inline_comments),
@@ -97,3 +190,4 @@ def load_config(path: Path | str | None) -> Config:
         summary=raw.get("summary", defaults.summary),
         dimensions=raw.get("dimensions", list(_DEFAULT_DIMENSIONS)),
     )
+    return endpoints_from_env(config)
