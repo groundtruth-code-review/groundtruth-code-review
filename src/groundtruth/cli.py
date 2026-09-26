@@ -10,6 +10,7 @@ command, called the same way no matter who's asking."
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import logging
 import sys
@@ -572,7 +573,8 @@ def _run_eval(args) -> int:
             file=sys.stderr,
         )
 
-    report = run_suite(cases, min_confidence=args.min_confidence, **clients)
+    with contextlib.redirect_stdout(sys.stderr):
+        report = run_suite(cases, min_confidence=args.min_confidence, **clients)
     print(json.dumps(report_to_dict(report), indent=2) if args.format == "json" else render_report(report))
 
     failures = []
@@ -717,15 +719,19 @@ def main(argv: list[str] | None = None) -> int:
                 config = replace(config, summary=False)
             config = _apply_endpoint_flags(config, args)
             config.check_models_match_endpoints()
-            outcome = run_review(
-                repo=args.repo,
-                base=args.base,
-                head=args.head,
-                diff_path=args.diff,
-                config=config,
-                dry_run=args.dry_run,
-                seen_fingerprints=set(args.seen_fingerprint) or None,
-            )
+            # Anything a library prints while the review runs goes to stderr.
+            # stdout carries exactly one thing -- the result -- because
+            # adapters parse it, and one stray line makes it unparseable.
+            with contextlib.redirect_stdout(sys.stderr):
+                outcome = run_review(
+                    repo=args.repo,
+                    base=args.base,
+                    head=args.head,
+                    diff_path=args.diff,
+                    config=config,
+                    dry_run=args.dry_run,
+                    seen_fingerprints=set(args.seen_fingerprint) or None,
+                )
         except (GitError, ConfigError, CostCeilingExceeded) as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 1

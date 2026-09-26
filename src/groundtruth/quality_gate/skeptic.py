@@ -14,10 +14,14 @@ asymmetry.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Protocol
 
+from ..redact import describe_error
 from .models import Finding
+
+logger = logging.getLogger(__name__)
 
 # The reason string a failed skeptic call drops a finding with. Named here
 # so the caller can count these without matching on prose that might be
@@ -86,7 +90,8 @@ def cross_examine(finding: Finding, evidence: str, llm: JsonLlm) -> SkepticVerdi
     system_prompt, user_prompt = skeptic_prompts(finding, evidence)
     try:
         raw = llm.complete_json(system_prompt, user_prompt)
-    except Exception:
+    except Exception as exc:
+        logger.warning("verify_call_failed file=%s error=%s", finding.file, describe_error(exc))
         # A broken skeptic call must never crash the review. It degrades to
         # "could not verify" — treated as a real verdict of no confidence,
         # not silently skipped (skipping would let an unverified finding

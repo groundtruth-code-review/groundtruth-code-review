@@ -27,6 +27,7 @@ import re
 from typing import Protocol
 
 from .quality_gate import GateVerdict
+from .redact import describe_error
 
 logger = logging.getLogger(__name__)
 
@@ -108,8 +109,10 @@ def write_summary(findings: list[GateVerdict], llm: JsonLlm) -> str | None:
     system, user = summary_prompts(findings)
     try:
         raw = llm.complete_json(system, user)
-    except Exception:
-        logger.info("summary_call_failed falling_back=deterministic_list")
+    except Exception as exc:
+        logger.warning(
+            "summary_call_failed falling_back=deterministic_list error=%s", describe_error(exc)
+        )
         return None
 
     summary = str(raw.get("summary", "")).strip() if isinstance(raw, dict) else ""

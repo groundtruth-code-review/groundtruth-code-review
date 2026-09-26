@@ -656,3 +656,43 @@ def test_each_client_gets_the_settings_for_its_own_model(repo, monkeypatch):
     assert built[0] == ("nvidia_nim/moonshotai/kimi-k3", {"temperature": 1.0, "max_tokens": 16384})
     assert built[1] == ("nvidia_nim/z-ai/glm-5.3-flash", {"max_tokens": 2048})
     assert built[2] == ("nvidia_nim/z-ai/glm-5.3-flash", {"max_tokens": 2048})
+
+
+# --- stdout carries the result and nothing else ---------------------------
+
+def test_stdout_stays_valid_json_when_a_library_prints_and_a_call_fails(repo, monkeypatch, capsys):
+    # LiteLLM printed a banner to stdout on every failed call, which made
+    # --format json unparseable -- so the GitHub adapter crashed and posted
+    # nothing, not even the warning that the review had failed
+    import groundtruth.cli as cli_module
+
+    class NoisyFailingClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def complete_json(self, system, user):
+            print("Give Feedback / Get Help: https://example.invalid")
+            raise RuntimeError("Missing credentials")
+
+        def estimate_cost(self, system, user, expected_completion_tokens=800):
+            return CostEstimate(model="m", prompt_tokens=1,
+                                estimated_completion_tokens=1, estimated_cost_usd=0.0)
+
+    monkeypatch.setattr(cli_module, "LlmClient", NoisyFailingClient)
+    repo_path, base_sha = repo
+    code = cli_module.main(["review", "--repo", str(repo_path), "--base", base_sha, "--format", "json"])
+    captured = capsys.readouterr()
+
+    assert code == 0
+    payload = json.loads(captured.out)          # must parse
+    assert payload["review_incomplete"] is True
+    assert "Give Feedback" not in captured.out
+    assert "Give Feedback" in captured.err      # moved, not lost
+
+
+def test_a_failed_call_logs_why(repo, caplog):
+    repo_path, base_sha = repo
+    with caplog.at_level("WARNING"):
+        run_review(repo_path, base=base_sha, head="HEAD", llm=BrokenLlm())
+    assert "review_call_failed" in caplog.text
+    assert "provider unavailable" in caplog.text

@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from .context_engine import ContextBlock, DiffMap, FileDiff, Hunk, render_file_diff
 from .llm import LlmClient
 from .quality_gate.models import Finding, Severity
+from .redact import describe_error
 
 logger = logging.getLogger(__name__)
 
@@ -155,13 +156,16 @@ def propose_findings(
 
     try:
         raw = llm.complete_json(system, user)
-    except Exception:
+    except Exception as exc:
         # Still "nothing to say this run" for the caller, but now it is
         # countable, so the run can tell the reader the difference between a
-        # clean file and a call that never came back.
+        # clean file and a call that never came back -- and the log says why,
+        # which is the first thing anyone needs when every call fails.
         if tally is not None:
             tally.failed += 1
-        logger.info("review_call_failed file=%s", label or "(unlabeled)")
+        logger.warning(
+            "review_call_failed file=%s error=%s", label or "(unlabeled)", describe_error(exc)
+        )
         return []
 
     items = raw.get("findings", []) if isinstance(raw, dict) else []

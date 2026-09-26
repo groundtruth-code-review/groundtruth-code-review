@@ -16,9 +16,23 @@ through it instead of the provider directly. Same client, same code.
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 
 import litellm
+
+# LiteLLM prints a "Give Feedback / Get Help" banner on every failed call,
+# and it prints it to stdout. `groundtruth review --format json` writes its
+# result to stdout for adapters to parse, so one failed call used to make
+# that output invalid JSON -- the GitHub adapter would crash and post
+# nothing, including the warning that the review had failed. The CLI also
+# shields stdout itself; this stops the noise at the source.
+litellm.suppress_debug_info = True
+
+# The CLI logs at INFO so its own prompt-size lines are visible. Without
+# this, that also turns on LiteLLM's per-call INFO chatter.
+for _name in ("LiteLLM", "LiteLLM Router", "LiteLLM Proxy"):
+    logging.getLogger(_name).setLevel(logging.WARNING)
 
 # Two provider quirks the original design hit in practice and had to work
 # around — kept here because they're real, not hypothetical:
