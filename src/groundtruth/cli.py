@@ -519,6 +519,13 @@ def _run_eval(args) -> int:
     print(json.dumps(report_to_dict(report), indent=2) if args.format == "json" else render_report(report))
 
     failures = []
+    # A run where the model never answered has not measured anything, so it
+    # fails rather than reporting a catch rate that means "no calls worked".
+    if report.review_failures_total:
+        failures.append(
+            f"{report.review_failures_total} of {report.review_calls_total} review call(s) failed "
+            "-- the catch rate does not measure the model"
+        )
     # A leak is a gate regression: a case asserted this finding must be
     # rejected and it reached the pull request instead. There is no
     # threshold to tune -- the case says it must not get through.

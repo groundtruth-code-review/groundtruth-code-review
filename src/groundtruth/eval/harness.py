@@ -35,7 +35,7 @@ from pathlib import Path
 
 from ..context_engine import build_context, parse_diff
 from ..quality_gate import Finding, line_in_changed_hunk, run_gate
-from ..reviewer import propose_findings_for_diffmap
+from ..reviewer import CallTally, propose_findings_for_diffmap
 
 _LINE_TOLERANCE = 2  # a model may point at a neighbouring line of the same change
 
@@ -133,6 +133,12 @@ class CaseResult:
     # gate ever seeing the thing it was supposed to reject.
     gate_unexercised: list[ExpectedFinding] = field(default_factory=list)
     gate_wrong_stage: list[tuple[ExpectedFinding, str]] = field(default_factory=list)
+    # A failed review call returns no findings, which looks exactly like a
+    # model that missed the bug. Offline that cannot happen; live it is the
+    # first thing a missing key or a provider outage produces, and without
+    # counting it the report would call it a 0% catch rate.
+    review_calls: int = 0
+    review_failures: int = 0
 
     @property
     def expected_total(self) -> int:
@@ -166,6 +172,14 @@ class EvalReport:
     @property
     def gate_held_total(self) -> int:
         return sum(len(case.gate_held) for case in self.cases)
+
+    @property
+    def review_calls_total(self) -> int:
+        return sum(case.review_calls for case in self.cases)
+
+    @property
+    def review_failures_total(self) -> int:
+        return sum(case.review_failures for case in self.cases)
 
     @property
     def gate_wrong_stage_total(self) -> int:
@@ -280,7 +294,10 @@ def run_case(case: EvalCase, review_llm=None, verify_llm=None, min_confidence: f
             base_sources=case.base_sources,
         )
 
-        candidates = propose_findings_for_diffmap(diffmap, ctx.blocks, review_llm)
+        tally = CallTally()
+        candidates = propose_findings_for_diffmap(diffmap, ctx.blocks, review_llm, tally=tally)
+        result.review_calls = tally.made
+        result.review_failures = tally.failed
         evidence = [case.diff] + [block.text for block in ctx.blocks]
 
         spans = {
@@ -383,6 +400,13 @@ def render_report(report: EvalReport) -> str:
             lines.append(f"    false +  {finding.file}:{finding.line}  {finding.title}")
         lines.append("")
 
+    if report.review_failures_total:
+        lines.append(
+            f"WARNING: {report.review_failures_total} of {report.review_calls_total} review call(s) "
+            "failed. Those cases count as missed below, but the model never answered -- "
+            "check the provider keys before reading the catch rate."
+        )
+        lines.append("")
     lines.append(
         f"catch rate {report.catch_rate:.0%}  "
         f"({report.caught_total} caught, {report.gated_total} gated, {report.missed_total} missed)"
@@ -432,4 +456,6 @@ def report_to_dict(report: EvalReport) -> dict:
         "gate_leaked_total": report.gate_leaked_total,
         "gate_unexercised_total": report.gate_unexercised_total,
         "gate_wrong_stage_total": report.gate_wrong_stage_total,
+        "review_calls_total": report.review_calls_total,
+        "review_failures_total": report.review_failures_total,
     }

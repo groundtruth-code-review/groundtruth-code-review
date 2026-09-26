@@ -330,3 +330,28 @@ def test_every_shipped_gate_case_names_its_stage():
     for case in load_cases("cases"):
         for expected in case.expect_gated:
             assert expected.stage, f"{case.name} does not say which stage must reject it"
+
+
+def test_a_live_run_with_failed_calls_is_not_reported_as_a_bad_model(capsys, monkeypatch, tmp_path):
+    # a missing key makes every call fail; that must read as "calls failed",
+    # never as "the model missed every bug"
+    import groundtruth.cli as cli_module
+
+    class FailingClient:
+        def __init__(self, model, api_base=None, **kwargs):
+            pass
+
+        def complete_json(self, system, user):
+            raise RuntimeError("missing API key")
+
+    monkeypatch.setattr(cli_module, "LlmClient", FailingClient)
+    assert main(["eval", "--cases", "cases", "--live", "--config", str(tmp_path / "none.yml")]) == 1
+    out = capsys.readouterr()
+    assert "never answered" in out.out
+    assert "does not measure the model" in out.err
+
+
+def test_an_offline_run_has_no_failed_calls():
+    report = run_suite(load_cases("cases"))
+    assert report.review_calls_total > 0
+    assert report.review_failures_total == 0
