@@ -545,6 +545,11 @@ def _run_eval(args) -> int:
         if args.verify_model:
             config = replace(config, verify_model=args.verify_model)
         config = _apply_endpoint_flags(config, args)
+        try:
+            config.check_models_match_endpoints()
+        except ConfigError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
         clients = {
             "review_llm": LlmClient(
                 model=config.review_model, api_base=config.review_base_url, params=config.review_params
@@ -711,6 +716,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.no_summary:
                 config = replace(config, summary=False)
             config = _apply_endpoint_flags(config, args)
+            config.check_models_match_endpoints()
             outcome = run_review(
                 repo=args.repo,
                 base=args.base,

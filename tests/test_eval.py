@@ -355,3 +355,18 @@ def test_an_offline_run_has_no_failed_calls():
     report = run_suite(load_cases("cases"))
     assert report.review_calls_total > 0
     assert report.review_failures_total == 0
+
+
+def test_live_eval_refuses_a_misprefixed_nvidia_model_before_any_call(tmp_path, monkeypatch, capsys):
+    import groundtruth.cli as cli_module
+
+    def no_calls(*args, **kwargs):
+        raise AssertionError("no client should be built for a config that cannot work")
+
+    monkeypatch.setattr(cli_module, "LlmClient", no_calls)
+    config = tmp_path / "c.yml"
+    config.write_text("model: openai/gpt-oss-20b\n")
+    code = main(["eval", "--cases", "cases", "--live", "--config", str(config),
+                 "--base-url", "https://integrate.api.nvidia.com/v1"])
+    assert code == 1
+    assert "nvidia_nim/openai/gpt-oss-20b" in capsys.readouterr().err

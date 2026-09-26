@@ -92,6 +92,31 @@ def _validate_params(params: object, key: str, source: str) -> dict:
     return clean
 
 
+NVIDIA_CATALOG_URL = "https://integrate.api.nvidia.com/v1"
+
+
+def check_model_matches_endpoint(model: str, base_url: str | None, stage: str) -> None:
+    """Fail before the first call when a model name will be misread at its
+    endpoint.
+
+    NVIDIA's catalog ids already carry their vendor -- openai/gpt-oss-20b,
+    moonshotai/kimi-k3 -- and LiteLLM reads the first path segment as the
+    provider. So "openai/gpt-oss-20b" goes out as an OpenAI call: it reads
+    OPENAI_API_KEY instead of NVIDIA_NIM_API_KEY, and sends the model as
+    "gpt-oss-20b", which NVIDIA does not serve. Both failures surface as a
+    provider error that names neither cause. The fix is always the same --
+    put nvidia_nim/ in front of the full id -- so say exactly that.
+    """
+    if base_url == NVIDIA_CATALOG_URL and not model.startswith("nvidia_nim/"):
+        raise ConfigError(
+            f"The {stage} model '{model}' is sent to NVIDIA's API catalog but is not prefixed "
+            "'nvidia_nim/'. NVIDIA's model ids already include their vendor, and LiteLLM reads "
+            "that vendor as the provider -- so the call would go out as a different provider, "
+            "with the wrong key and a shortened model name. "
+            f"Use '{'nvidia_nim/' + model}'."
+        )
+
+
 def normalize_base_url(url: str | None) -> str | None:
     """Trim whitespace and a trailing slash, and treat empty as unset.
 
@@ -194,6 +219,12 @@ class Config:
         if self.summary_model_params is not None:
             return dict(self.summary_model_params)
         return self.resolved_verify_params if self.summary_model is None else {}
+
+
+    def check_models_match_endpoints(self) -> None:
+        check_model_matches_endpoint(self.review_model, self.review_base_url, "review")
+        check_model_matches_endpoint(self.resolved_verify_model, self.resolved_verify_base_url, "verify")
+        check_model_matches_endpoint(self.resolved_summary_model, self.resolved_summary_base_url, "summary")
 
 
 def endpoints_from_env(config: Config) -> Config:

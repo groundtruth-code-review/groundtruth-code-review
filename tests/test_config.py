@@ -310,3 +310,34 @@ def test_the_summary_inherits_the_verifiers_settings_with_its_model():
 
 def test_no_settings_means_the_defaults():
     assert Config().review_params == {}
+
+
+# --- NVIDIA ids carry their vendor, so the provider prefix goes in front ---
+
+from groundtruth.config import NVIDIA_CATALOG_URL, check_model_matches_endpoint  # noqa: E402
+
+
+@pytest.mark.parametrize("model", ["openai/gpt-oss-20b", "moonshotai/kimi-k3", "meta/codellama-70b"])
+def test_an_nvidia_id_without_the_provider_prefix_fails_with_the_fix(model):
+    # LiteLLM reads the vendor as the provider, so the call would go out as
+    # the wrong provider with the wrong key and a shortened model name
+    with pytest.raises(ConfigError) as exc:
+        check_model_matches_endpoint(model, NVIDIA_CATALOG_URL, "review")
+    assert f"nvidia_nim/{model}" in str(exc.value)
+
+
+def test_a_prefixed_nvidia_id_passes():
+    check_model_matches_endpoint("nvidia_nim/openai/gpt-oss-20b", NVIDIA_CATALOG_URL, "review")
+
+
+def test_other_endpoints_are_not_second_guessed():
+    check_model_matches_endpoint("openai/gpt-4o", None, "review")
+    check_model_matches_endpoint("openai/my-model", "https://vllm.internal/v1", "review")
+
+
+def test_every_stage_is_checked():
+    c = Config(model="nvidia_nim/moonshotai/kimi-k3", llm_base_url=NVIDIA_CATALOG_URL,
+               verify_model="openai/gpt-oss-20b")
+    with pytest.raises(ConfigError) as exc:
+        c.check_models_match_endpoints()
+    assert "verify" in str(exc.value)

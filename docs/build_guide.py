@@ -294,7 +294,7 @@ export GROUNDTRUTH_BASE_URL=https://integrate.api.nvidia.com/v1
 
 groundtruth review --base main --model nvidia_nim/moonshotai/kimi-k3</code></pre>
       </div>
-      <p>Use the model id shown on the model's page at build.nvidia.com. Note the key: NVIDIA's endpoint reads <code>NVIDIA_NIM_API_KEY</code>, not <code>OPENAI_API_KEY</code>, even though it speaks the OpenAI protocol.</p>
+      <p>Use the model id shown on the model's page at build.nvidia.com, with <code>nvidia_nim/</code> in front of the <i>whole</i> id. NVIDIA's ids already carry their vendor &mdash; <code>openai/gpt-oss-20b</code>, <code>moonshotai/kimi-k3</code> &mdash; and LiteLLM reads the first segment as the provider, so <code>openai/gpt-oss-20b</code> on its own would be sent as an OpenAI call. The right name is <code>nvidia_nim/openai/gpt-oss-20b</code>, and Groundtruth refuses the other spelling before making any call. Note the key too: NVIDIA's endpoint reads <code>NVIDIA_NIM_API_KEY</code>, not <code>OPENAI_API_KEY</code>, even though it speaks the OpenAI protocol.</p>
 
       <h3>Example: Claude reviews, a model on NVIDIA verifies</h3>
       <div class="code-box">
@@ -555,6 +555,9 @@ PAGES["troubleshooting"] = (
 
       <h2>Review calls fail with a reasoning model</h2>
       <p>The run reports failed calls, but the key and endpoint are right. Reasoning models spend part of <code>max_tokens</code> thinking, so the default 4096 can run out before the JSON is finished &mdash; and a reply cut off mid-object cannot be parsed. Raise it in <code>model_params</code>, and set <code>temperature: 1</code> if the model's own documentation asks for it. See <a href="configuration.html">sampling settings</a>.</p>
+
+      <h2>&ldquo;is sent to NVIDIA's API catalog but is not prefixed 'nvidia_nim/'&rdquo;</h2>
+      <p>The model name is missing its provider prefix. NVIDIA's ids include their vendor, so <code>openai/gpt-oss-20b</code> is read as provider <code>openai</code>, model <code>gpt-oss-20b</code> &mdash; the wrong provider, the wrong key, and a model NVIDIA does not serve. Put <code>nvidia_nim/</code> in front of the whole id: <code>nvidia_nim/openai/gpt-oss-20b</code>. The error names the corrected spelling.</p>
 
       <h2>Authentication fails against NVIDIA's endpoint</h2>
       <p>Two usual causes. The key variable is <code>NVIDIA_NIM_API_KEY</code>, not <code>OPENAI_API_KEY</code>, even though the endpoint speaks the OpenAI protocol. And the base URL must be exactly <code>https://integrate.api.nvidia.com/v1</code> &mdash; LiteLLM recognizes it by exact string. Groundtruth trims a trailing slash for you, but a different path will fall back to generic OpenAI handling and read the wrong key.</p>
