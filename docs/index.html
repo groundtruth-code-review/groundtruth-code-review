@@ -20,6 +20,7 @@
     <span class="topnav">
       <a href="#stages">How it works</a>
       <a href="#why">Why</a>
+      <a href="#compared">Compared</a>
       <a href="#features">Features</a>
       <a href="#quickstart">Get started</a>
       <a href="guide/getting-started.html">Docs</a>
@@ -406,6 +407,92 @@ Reviewed with `anthropic/claude-sonnet-5` &middot; estimated $0.0032.&lt;/sub&gt
         <li><svg class="mark" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="3,8.5 6.5,12 13,4"/></svg>Fingerprints every finding by what it's about, not how it's worded, so re-runs never repeat a comment</li>
       </ul>
     </div>
+  </div>
+
+  <div class="prose">
+    <h2 id="compared">How the design differs</h2>
+    <p>We read how Qodo, CodeRabbit and Open Code Review describe their own designs and compared them on two questions: who decides what code the model sees, and what stands between a model's claim and your pull request. This is a map of design choices, not a scoreboard. We have not benchmarked any of them against Groundtruth, and a different design is not a worse one.</p>
+
+    <h3>Who decides what the model reads?</h3>
+    <p class="hint">Placement is our reading of each project's published description, not a measurement</p>
+  </div>
+
+  <div class="lanes">
+    <div class="lanes-axis"><span>Fixed by code</span><span>Chosen by the model</span></div>
+
+    <div class="lane ours">
+      <div class="lane-name">Groundtruth</div>
+      <div class="lane-track"><span class="lane-dot" style="left:4%"></span></div>
+      <p class="lane-desc">Code decides. Tree-sitter finds the changed function and a text search finds its callers; a changed signature pulls its callers in. The same diff gives the same context, and the cost is known before any model call.</p>
+    </div>
+
+    <div class="lane">
+      <div class="lane-name">Open Code Review<sup>1</sup></div>
+      <div class="lane-track"><span class="lane-dot" style="left:42%"></span></div>
+      <p class="lane-desc">Rules pick and group the files to review. Then an agent reads whole files, searches the codebase and looks at the other changed files.</p>
+    </div>
+
+    <div class="lane">
+      <div class="lane-name">CodeRabbit</div>
+      <div class="lane-track"><span class="lane-dot" style="left:62%"></span></div>
+      <p class="lane-desc">Builds a map of definitions and references and keeps an embedding index of functions, tests and past changes, with linters running alongside. The review agent then checks its assumptions with shell commands.</p>
+    </div>
+
+    <div class="lane">
+      <div class="lane-name">Qodo</div>
+      <div class="lane-track"><span class="lane-dot" style="left:90%"></span></div>
+      <p class="lane-desc">Removed its codebase index in version 2.4. The agent now finds context itself with git diff, grep and file reads, backed by an index of past pull request feedback and team conventions.</p>
+    </div>
+  </div>
+
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="f-num">Toward the left</div>
+      <h4>Reproducible and bounded</h4>
+      <p>The same diff gives the same context, you can see exactly what was sent with <code>--dry-run</code>, and the bill has a ceiling. The price: it only follows paths we wrote. Callers are one hop away, found by text search in 18 file types, so a bug three calls deep or in another language is out of reach.</p>
+    </div>
+    <div class="feature-card">
+      <div class="f-num">Toward the right</div>
+      <h4>Adaptive</h4>
+      <p>An agent can follow a thread nobody wrote a rule for, in any language. The price: what the model saw can differ between two runs of the same diff, and how much it reads is the model's call.</p>
+    </div>
+  </div>
+
+  <div class="prose">
+    <h3>What stands between a model's claim and your pull request?</h3>
+  </div>
+
+  <div class="check-grid">
+    <div class="check-card ours">
+      <h4>Groundtruth</h4>
+      <p class="how">Code checks, then a second model with a veto</p>
+      <p>The finding must quote code that exists in the diff, on a changed line, and not repeat an earlier comment. A second model then judges it. Its confidence is multiplied with the first model's, and &ldquo;not real&rdquo; or &ldquo;not worth fixing&rdquo; zeroes it. That second model can come from a different provider, and every drop is recorded with its stage and reason.</p>
+    </div>
+    <div class="check-card">
+      <h4>CodeRabbit</h4>
+      <p class="how">Evidence from running checks</p>
+      <p>Before commenting, it runs shell and Python checks (grep, ast-grep) in an isolated environment to confirm an assumption, so a comment can carry the proof it found.</p>
+    </div>
+    <div class="check-card">
+      <h4>Open Code Review</h4>
+      <p class="how">Separate accuracy modules</p>
+      <p>Independent modules work on where a comment lands and on what it says. The public README doesn't detail how findings are filtered or deduplicated.</p>
+    </div>
+    <div class="check-card unknown">
+      <h4>Qodo</h4>
+      <p class="how">Not described in what we read</p>
+      <p>The 2.4 write-up says nothing about a verification or false-positive step. One may exist elsewhere in its documentation; we only read the sources listed below.</p>
+    </div>
+  </div>
+
+  <div class="prose">
+    <h3>Where they are ahead of us</h3>
+    <div class="callout">
+      <p style="margin:0 0 10px"><b>They can follow a thread.</b> Agentic context-gathering reaches code that our one-hop caller lookup does not.</p>
+      <p style="margin:0 0 10px"><b>CodeRabbit executes checks.</b> It runs linters and security analyzers alongside the model and proves claims by running commands. We only verify that the quoted code exists, then ask a second model.</p>
+      <p style="margin:0"><b>Qodo carries team context between reviews.</b> Groundtruth remembers one thing, which findings it already posted on this pull request. Nothing reads a thumbs-down or a resolved thread back into the next review yet.</p>
+    </div>
+    <p class="sources">Read in October 2026 from each project's own pages: <a href="https://www.qodo.ai/blog/we-built-a-state-of-the-art-rag-system-for-code-review-in-qodo-2-4-we-took-most-of-it-out/">Qodo, on removing most of its RAG system in 2.4</a>; <a href="https://www.coderabbit.ai/blog/how-coderabbit-delivers-accurate-ai-code-reviews-on-massive-codebases">CodeRabbit, on accurate reviews on massive codebases</a>; <a href="https://github.com/alibaba/open-code-review">Open Code Review README</a>.<br><sup>1</sup> Several GitHub projects share this name; this is Alibaba's. Products change, so if something here is out of date, <a href="https://github.com/groundtruth-code-review/groundtruth-code-review/issues">please open an issue</a>.</p>
   </div>
 
   <div class="prose">
