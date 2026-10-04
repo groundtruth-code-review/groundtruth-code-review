@@ -288,148 +288,65 @@ with tempfile.TemporaryDirectory() as repo:
 
 ## Configuration
 
+Every setting has a working default, so the file is optional.
+
 ```yaml
 # .groundtruth.yml — safe to commit: it can never hold a key
 model: anthropic/claude-sonnet-5   # or openai/gpt-4o, ollama/qwen2.5-coder, ...
-max_cost_per_run: 1.00             # personal-use safety ceiling, whole run
-min_confidence: 0.7                # the quality gate's default bar
+max_cost_per_run: 1.00             # safety ceiling for the whole run
+min_confidence: 0.7                # the quality gate's bar
 max_inline_comments: 10
 context_token_budget: 25000        # context assembled per review
 max_diff_tokens_per_call: 6000     # a bigger file is reviewed in hunk groups
 summary: true                      # one cheap call to group the findings
 dimensions: [correctness, security, conventions]
 
-# Optional: a different model for the checking stages. Unset means every
-# stage uses `model` above — splitting them is something you opt into.
-# verify_model: anthropic/claude-haiku-4-5-20251001
+# Optional: different models for the checking stages. Unset means every stage
+# uses `model`. The verifier can be a different provider (Claude proposes and
+# GPT cross-examines, or the reverse) -- set both providers' keys.
+# verify_model: openai/gpt-4o-mini
 # summary_model: anthropic/claude-haiku-4-5-20251001
 
-# The verifier can be a different provider entirely. Claude proposes and GPT
-# cross-examines, or the other way round — set both providers' keys.
-# verify_model: openai/gpt-4o-mini
-
-# Optional: sampling settings, per model — temperature, top_p, max_tokens.
-# Mostly for reasoning models, which often want temperature 1 and a larger
-# token budget because they think before they answer.
+# Optional: sampling settings per model, mostly for reasoning models.
 # model_params: {temperature: 1, top_p: 1, max_tokens: 16384}
-# verify_model_params: {temperature: 0.1, max_tokens: 2048}
 ```
 
-Settings follow the model they were tuned for: a stage inherits them only
-when it runs the same model. `stream` isn't supported — every reply is
-parsed as one JSON object, so it has to arrive whole. Only those three
-settings are accepted, within bounds, because the pull request under review
-can edit this file.
+Two rules are enforced, not just requested:
 
-### Endpoints
+- **Keys are environment variables, always** — `ANTHROPIC_API_KEY`,
+  `OPENAI_API_KEY` and so on. The loader refuses a `.groundtruth.yml` that
+  contains anything key-shaped, with an error naming the field. For a team or
+  CI, inject keys from a secrets manager rather than a `.env` file
+  (see `.env.example`).
+- **Endpoints are never read from `.groundtruth.yml`.** Where a key is sent
+  is decided by whoever owns the key: `GROUNDTRUTH_BASE_URL` in the
+  environment, or `--base-url` on the command line. That file lives in the
+  repository under review, so a pull request could otherwise edit it to send
+  your key to its own server.
 
-By default each model is called at its provider's own endpoint. To send a
-stage somewhere else — NVIDIA's API catalog, Azure, a self-hosted model, or
-your org's LiteLLM proxy — set it in the environment or on the command line:
-
-```bash
-export NVIDIA_NIM_API_KEY=...
-export GROUNDTRUTH_BASE_URL=https://integrate.api.nvidia.com/v1
-
-groundtruth review --base main --model nvidia_nim/moonshotai/kimi-k3
-```
-
-Each stage can have its own: `GROUNDTRUTH_BASE_URL` (review, and the
-default for all), `GROUNDTRUTH_VERIFY_BASE_URL`, `GROUNDTRUTH_SUMMARY_BASE_URL`,
-or `--base-url` / `--verify-base-url` / `--summary-base-url`. Flags beat the
-environment. An endpoint follows the model it serves: if the summary inherits
-the verifier's model, it inherits the verifier's endpoint too.
-
-**Endpoints are never read from `.groundtruth.yml`, and it refuses to load if
-one is there.** An endpoint decides which server receives your API key along
-with your code, and that file is in the repository under review — so the pull
-request being reviewed can edit it. A review bot run on `pull_request_target`
-(common, because it's how a bot comments on forks) hands the job your
-secrets, and a fork that pointed the endpoint at its own server would collect
-your key on the first call. So endpoints come from the same place keys do:
-whoever owns the key sets where it goes.
-
-**Verify with a different provider.** The skeptic pass exists to be a second
-opinion, and a second opinion from the same model isn't much of one — two
-calls to one model share its training and its blind spots, and a model
-judging its own kind of output tends to agree with it. So `verify_model` can
-name a different provider from `model`: review with Claude and verify with
-GPT, or the reverse. The verifier is never told which model proposed the
-finding. It needs both providers' keys in the environment; miss one and the
-run reports itself as failed rather than clean. Whether it helps on your
-code is something the `eval` harness can tell you — run your cases both ways
-and compare.
-
-`max_cost_per_run` covers the whole run, not just the review pass: the
-ceiling is re-checked before the verification pass (one call per candidate)
-and before the summary call, because the number of those calls is not known
-until the review returns.
-
-`config.py` refuses to load a `.groundtruth.yml` that contains anything
-key-shaped (a `sk-...` prefix, or a long opaque token) — loudly, with an
-error naming the offending field, not a silent skip. That's what makes the
-"safe to commit" claim above enforced rather than just asked nicely.
-
-API keys are **environment variables, always** — `ANTHROPIC_API_KEY`,
-`OPENAI_API_KEY`, etc. — never config, never committed. See `.env.example`.
-For a team or CI deployment, inject that environment variable from a real
-secrets manager (HashiCorp Vault or a cloud equivalent) rather than a `.env`
-file at all.
+Every setting, per-stage endpoints (NVIDIA's catalog, Azure, a LiteLLM proxy),
+verifying with a different provider, and sampling settings are in the
+**[configuration guide](https://groundtruth-code-review.github.io/groundtruth-code-review/guide/configuration.html)**.
 
 ## Roadmap
 
-- [x] `context_engine` — diff parsing, Tree-sitter chunking, caller search,
-      signature-change detection, budgeted assembly
-- [x] `quality_gate` — hallucination check, adversarial skeptic pass
-      (multiply-not-average confidence), fact-based fingerprinting
-- [x] `llm` — embedded LiteLLM wrapper: BYOK, any model by name, pre-call
-      cost estimation
-- [x] `reviewer` — the LLM pass that proposes candidate findings for
-      `quality_gate` to verify or reject. Batched per changed file, not one
-      call over the whole diff: a single pass over a large, multi-file PR
-      measurably loses recall as the diff grows (a well-documented LLM
-      behavior, not a context-window limit) — it reports the most-salient
-      few issues and stops, then "finds more" on the next re-review once the
-      diff has shrunk from earlier fixes. Reviewing file-by-file keeps every
-      file's review call bounded regardless of overall PR size, so file 15
-      gets the same attention as file 1
-- [x] `git_source` + `config` — git integration and `.groundtruth.yml`
-      loading, including the "refuses to load a config with a key in it" check
-- [x] `cli` — `groundtruth review`, the one command every front door calls:
-      `.groundtruth.yml` loading, `--model` override, `--dry-run` /
-      `max_cost_per_run` safety ceiling, JSON and text output
-- [x] `adapters/github` — a composite GitHub Action: upserted summary
-      comment plus one inline comment per finding, stdlib-only, no
-      dependency on the `groundtruth` package itself
-- [x] `summary` — one cheap call that groups verified findings, gated by its
-      own grounding check and falling back to the plain list on any failure
-- [x] fingerprint memory between pushes — carried in a hidden marker inside
-      the summary comment, so a re-review never repeats a comment and no
-      database is needed
-- [x] `eval` — labeled replay, catch / gated / missed / false-positive
-      grading, and `--min-catch` / `--max-fp` thresholds for CI
-- [x] `adapters/gitlab`, `adapters/bitbucket_cloud` — same core command,
-      each speaking only its own API
-- [x] a container image and the CI that gates it — multi-stage build whose
-      test stage gates the wheel, published to GHCR on a version tag
+The pipeline, CLI, eval harness, GitHub / GitLab / Bitbucket Cloud adapters and
+container image described above are built. What is left:
+
 - [ ] publish to PyPI, so installing stops meaning a git URL
-- [x] `groundtruth_review.server` — an optional, self-hosted ingest API and the
-      three-table Postgres schema behind it (`pip install
-      "groundtruth-review[server]"`; `docker compose -f
-      deploy/docker-compose.yml up` for local dev). Each CI adapter POSTs
-      its JSON output here if `GROUNDTRUTH_INGEST_URL` is set; unset by
-      default, and nothing about the CLI or the three CI adapters changes
-      either way. This is the durable store the design otherwise has none
-      of — review history outliving one pull request — and phase 1 of
-      [docs/server-mode-design.md](docs/server-mode-design.md)
-- [ ] `adapters/bitbucket_dc` — the webhook receiver and queue that write
-      to the schema above directly, for the one platform with no free
-      per-pull-request CI container; and the Helm chart that installs it.
-      Deliberately not started before the receiver exists: a chart with no
-      workload to run, and sizing numbers nobody measured, would be YAML
-      pretending to be a deployment. Phase 2 of the same design doc, not
-      yet built — nothing yet reads the schema above back out, either
-      (no dashboard, no feedback loop: phase 3)
+- [ ] `adapters/bitbucket_dc` — the webhook receiver and queue that write to
+      the server's schema directly, for the one platform with no free
+      per-pull-request CI container, and the Helm chart that installs it. Not
+      started before the receiver exists: a chart with no workload to run
+      would be YAML pretending to be a deployment. Phase 2 of
+      [docs/server-mode-design.md](docs/server-mode-design.md); nothing reads
+      the schema back out yet either (no dashboard, no feedback loop: phase 3)
+- [x] `groundtruth_review.server` — an optional, self-hosted ingest API and
+      three-table Postgres schema (`pip install "groundtruth-review[server]"`;
+      `docker compose -f deploy/docker-compose.yml up` for local dev). Each CI
+      adapter POSTs its JSON output here if `GROUNDTRUTH_INGEST_URL` is set;
+      unset by default, and nothing else changes either way. Phase 1 of the
+      same design doc
 
 ## Measuring it
 

@@ -62,10 +62,10 @@ that already happened once:
 ## What's most useful to work on right now
 
 Check the [Roadmap](README.md#roadmap) in the README — anything unchecked is
-open. `adapters/bitbucket_dc` plus `deploy/` is the remaining module, and the
-honest version of it needs real repositories to profile: the claim that
-module makes is a deployment sized from measurement, not a Helm chart full
-of guessed numbers.
+open. `adapters/bitbucket_dc` and the Helm chart that installs it are the
+remaining module, and the honest version of it needs real repositories to
+profile: the claim that module makes is a deployment sized from measurement,
+not a Helm chart full of guessed numbers.
 
 Adding a case to `cases/` is the smallest useful contribution, and often the
 most valuable: every case is a bug the tool can never silently stop
@@ -74,6 +74,6 @@ catching.
 ## Pull requests
 
 Small and focused beats large and sweeping. Add or update tests for
-anything behavioral — this project measures itself (see the eval-harness
-item on the roadmap once it exists), so untested behavior is the thing most
+anything behavioral — this project measures itself (see "Measuring it"
+in the README), so untested behavior is the thing most
 likely to regress silently.
