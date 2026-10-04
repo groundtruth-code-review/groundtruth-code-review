@@ -25,7 +25,7 @@ def db_dsn():
 @pytest.fixture
 def conn(db_dsn, monkeypatch):
     monkeypatch.setenv("GROUNDTRUTH_DB_URL", db_dsn)
-    from groundtruth.server import db
+    from groundtruth_review.server import db
 
     connection = db.connect()
     db.init_db(connection)
@@ -40,7 +40,7 @@ def conn(db_dsn, monkeypatch):
 def client(conn):
     from fastapi.testclient import TestClient
 
-    from groundtruth.server.app import app
+    from groundtruth_review.server.app import app
 
     with TestClient(app) as c:
         yield c

@@ -1,5 +1,5 @@
-from groundtruth.quality_gate.gate import run_gate
-from groundtruth.quality_gate.models import DropStage, Finding, Severity
+from groundtruth_review.quality_gate.gate import run_gate
+from groundtruth_review.quality_gate.models import DropStage, Finding, Severity
 
 EVIDENCE = [
     "def calculate_discount(self, price, promos):\n"
@@ -55,7 +55,7 @@ def test_hallucinated_quote_is_dropped_before_any_skeptic_call():
 
 def test_already_seen_fingerprint_is_deduped():
     finding = _finding()
-    from groundtruth.quality_gate.fingerprint import fingerprint as fp
+    from groundtruth_review.quality_gate.fingerprint import fingerprint as fp
 
     already_posted = {fp("invoice.py", _hunk_text_for(finding), "correctness", finding.quoted_code)}
     report = run_gate([finding], EVIDENCE, _hunk_text_for, FakeLlm(), seen_fingerprints=already_posted)

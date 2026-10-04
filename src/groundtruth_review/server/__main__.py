@@ -1,4 +1,4 @@
-"""`groundtruth-server`, or `python -m groundtruth.server`: runs the ingest
+"""`groundtruth-server`, or `python -m groundtruth_review.server`: runs the ingest
 API. `GROUNDTRUTH_DB_URL` must already be set -- see `db.dsn_from_env`.
 """
 
@@ -11,7 +11,7 @@ def main() -> None:
     import uvicorn
 
     uvicorn.run(
-        "groundtruth.server.app:app",
+        "groundtruth_review.server.app:app",
         host=os.environ.get("GROUNDTRUTH_SERVER_HOST", "0.0.0.0"),
         port=int(os.environ.get("GROUNDTRUTH_SERVER_PORT", "8000")),
     )

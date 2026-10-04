@@ -4,7 +4,7 @@ that matters without either: cost estimation (pure local computation against
 LiteLLM's model registry) and the response-cleanup logic.
 """
 
-from groundtruth.llm.client import LlmClient
+from groundtruth_review.llm.client import LlmClient
 
 
 def test_estimate_cost_for_a_known_model_returns_a_number():
@@ -28,7 +28,7 @@ def test_estimate_cost_for_an_unknown_local_model_degrades_to_none_not_a_crash()
 def _captured_call(monkeypatch, **client_kwargs):
     import types
 
-    import groundtruth.llm.client as client_module
+    import groundtruth_review.llm.client as client_module
 
     seen = {}
 

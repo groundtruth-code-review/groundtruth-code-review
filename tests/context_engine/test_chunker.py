@@ -1,4 +1,4 @@
-from groundtruth.context_engine.chunker import enclosing_chunks, find_by_name, parse_file
+from groundtruth_review.context_engine.chunker import enclosing_chunks, find_by_name, parse_file
 
 PY_SRC = """class Bar:
     def method(self, x):

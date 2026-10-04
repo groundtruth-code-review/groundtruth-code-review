@@ -1,7 +1,7 @@
 """The ingest API: `POST /reviews`, and nothing that reads the data back
 out yet -- see the module docstring in `__init__.py` for what this is.
 
-Run it with `uvicorn groundtruth.server.app:app`. `GROUNDTRUTH_DB_URL` (or
+Run it with `uvicorn groundtruth_review.server.app:app`. `GROUNDTRUTH_DB_URL` (or
 `DATABASE_URL`) has to be set before it will start; there is no default,
 on purpose (see `db.dsn_from_env`).
 """

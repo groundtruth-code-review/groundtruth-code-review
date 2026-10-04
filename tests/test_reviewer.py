@@ -1,9 +1,9 @@
 import logging
 
-from groundtruth.context_engine import parse_diff
-from groundtruth.llm import CostEstimate
-from groundtruth.quality_gate.models import Severity
-from groundtruth.reviewer import propose_findings, propose_findings_for_diffmap
+from groundtruth_review.context_engine import parse_diff
+from groundtruth_review.llm import CostEstimate
+from groundtruth_review.quality_gate.models import Severity
+from groundtruth_review.reviewer import propose_findings, propose_findings_for_diffmap
 
 
 class FakeLlm:
@@ -201,7 +201,7 @@ def test_one_files_call_failing_does_not_lose_the_others_findings():
 
 
 def test_prompt_size_is_logged_when_the_llm_can_measure_it(caplog):
-    with caplog.at_level(logging.INFO, logger="groundtruth.reviewer"):
+    with caplog.at_level(logging.INFO, logger="groundtruth_review.reviewer"):
         propose_findings("some diff text", [], FakeLlm({"findings": []}), label="invoice.py")
 
     records = [r for r in caplog.records if r.message.startswith("review_call_prompt_size")]
@@ -213,14 +213,14 @@ def test_prompt_size_is_logged_when_the_llm_can_measure_it(caplog):
 
 
 def test_unlabeled_call_logs_a_placeholder_not_a_blank(caplog):
-    with caplog.at_level(logging.INFO, logger="groundtruth.reviewer"):
+    with caplog.at_level(logging.INFO, logger="groundtruth_review.reviewer"):
         propose_findings("some diff text", [], FakeLlm({"findings": []}))
 
     assert "file=(unlabeled)" in caplog.text
 
 
 def test_prompt_size_logging_failure_never_breaks_the_review(caplog):
-    with caplog.at_level(logging.INFO, logger="groundtruth.reviewer"):
+    with caplog.at_level(logging.INFO, logger="groundtruth_review.reviewer"):
         findings = propose_findings(
             "some diff text", [], FakeLlmNoEstimate({"findings": [VALID_RESPONSE["findings"][0]]})
         )
@@ -235,7 +235,7 @@ def test_batched_review_logs_one_size_line_per_file(caplog):
     diffmap = parse_diff(TWO_FILE_DIFF)
     llm = PerFileFakeLlm({"invoice.py": {"findings": []}, "checkout.py": {"findings": []}})
 
-    with caplog.at_level(logging.INFO, logger="groundtruth.reviewer"):
+    with caplog.at_level(logging.INFO, logger="groundtruth_review.reviewer"):
         propose_findings_for_diffmap(diffmap, [], llm)
 
     size_lines = [r.message for r in caplog.records if r.message.startswith("review_call_prompt_size")]
@@ -257,8 +257,8 @@ def _diff_with_hunks(count: int, lines_per_hunk: int = 40) -> str:
 
 
 def test_a_file_bigger_than_the_budget_is_reviewed_in_groups():
-    from groundtruth.context_engine import parse_diff
-    from groundtruth.reviewer import hunk_groups
+    from groundtruth_review.context_engine import parse_diff
+    from groundtruth_review.reviewer import hunk_groups
 
     diffmap = parse_diff(_diff_with_hunks(6))
     groups = hunk_groups(diffmap["big.py"], max_tokens=600)
@@ -268,8 +268,8 @@ def test_a_file_bigger_than_the_budget_is_reviewed_in_groups():
 
 
 def test_a_single_oversized_hunk_still_goes_out_whole():
-    from groundtruth.context_engine import parse_diff
-    from groundtruth.reviewer import hunk_groups
+    from groundtruth_review.context_engine import parse_diff
+    from groundtruth_review.reviewer import hunk_groups
 
     diffmap = parse_diff(_diff_with_hunks(1, lines_per_hunk=200))
     groups = hunk_groups(diffmap["big.py"], max_tokens=100)
@@ -277,8 +277,8 @@ def test_a_single_oversized_hunk_still_goes_out_whole():
 
 
 def test_a_small_file_stays_one_call():
-    from groundtruth.context_engine import parse_diff
-    from groundtruth.reviewer import hunk_groups
+    from groundtruth_review.context_engine import parse_diff
+    from groundtruth_review.reviewer import hunk_groups
 
     diffmap = parse_diff(_diff_with_hunks(2, lines_per_hunk=3))
     assert len(hunk_groups(diffmap["big.py"], max_tokens=6000)) == 1

@@ -1,7 +1,7 @@
 import pytest
 
-from groundtruth.quality_gate.models import Finding, Severity
-from groundtruth.quality_gate.skeptic import SkepticVerdict, combined_confidence, cross_examine
+from groundtruth_review.quality_gate.models import Finding, Severity
+from groundtruth_review.quality_gate.skeptic import SkepticVerdict, combined_confidence, cross_examine
 
 
 class FakeLlm:

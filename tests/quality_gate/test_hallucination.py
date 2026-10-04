@@ -1,4 +1,4 @@
-from groundtruth.quality_gate.hallucination import line_in_changed_hunk, quote_exists
+from groundtruth_review.quality_gate.hallucination import line_in_changed_hunk, quote_exists
 
 
 def test_real_quote_is_found():

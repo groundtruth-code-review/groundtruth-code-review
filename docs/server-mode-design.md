@@ -137,9 +137,9 @@ read-only dashboard do not depend on it existing first:
 1. **Ingest only — built.** Each CI adapter POSTs its JSON output to a
    `/reviews` endpoint if `GROUNDTRUTH_INGEST_URL` is set
    (`adapters/common.py::maybe_ingest`); unset, it's the one `if` doing
-   nothing, same as before this existed. `groundtruth.server` (an optional
+   nothing, same as before this existed. `groundtruth_review.server` (an optional
    `pip install "groundtruth-review[server]"`) is the FastAPI app and the
-   three-table schema (`src/groundtruth/server/`), tested against a real
+   three-table schema (`src/groundtruth_review/server/`), tested against a real
    Postgres in CI (the `server-test` job) rather than a mock, since the
    thing worth proving here is the SQL. This alone unlocks history for
    GitHub, GitLab and Bitbucket Cloud users who stand up nothing but this

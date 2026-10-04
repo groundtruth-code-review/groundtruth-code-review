@@ -1,4 +1,4 @@
-from groundtruth.redact import describe_error, redact
+from groundtruth_review.redact import describe_error, redact
 
 
 def test_the_reason_is_kept():

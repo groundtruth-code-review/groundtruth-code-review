@@ -1,4 +1,4 @@
-from groundtruth.quality_gate.fingerprint import fingerprint
+from groundtruth_review.quality_gate.fingerprint import fingerprint
 
 
 def test_same_inputs_produce_same_fingerprint():

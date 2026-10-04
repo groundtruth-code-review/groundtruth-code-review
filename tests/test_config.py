@@ -1,6 +1,6 @@
 import pytest
 
-from groundtruth.config import (
+from groundtruth_review.config import (
     ENV_BASE_URL,
     ENV_SUMMARY_BASE_URL,
     ENV_VERIFY_BASE_URL,
@@ -314,7 +314,7 @@ def test_no_settings_means_the_defaults():
 
 # --- NVIDIA ids carry their vendor, so the provider prefix goes in front ---
 
-from groundtruth.config import NVIDIA_CATALOG_URL, check_model_matches_endpoint  # noqa: E402
+from groundtruth_review.config import NVIDIA_CATALOG_URL, check_model_matches_endpoint  # noqa: E402
 
 
 @pytest.mark.parametrize("model", ["openai/gpt-oss-20b", "moonshotai/kimi-k3", "meta/codellama-70b"])

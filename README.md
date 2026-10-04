@@ -68,7 +68,7 @@ decisions follow from that:
 ## How it's put together
 
 ```
-src/groundtruth/
+src/groundtruth_review/
 ├── context_engine/   # diff → hunks → enclosing functions → callers →
 │                      # signature-change detection → a budgeted context payload
 ├── quality_gate/      # hallucination check, adversarial cross-examination,
@@ -211,7 +211,7 @@ caller elsewhere in the tree that a diff-only review would never see:
 ```python
 import tempfile
 from pathlib import Path
-from groundtruth.context_engine import build_context, parse_diff
+from groundtruth_review.context_engine import build_context, parse_diff
 
 diff_text = """diff --git a/invoice.py b/invoice.py
 --- a/invoice.py
@@ -379,7 +379,7 @@ file at all.
 - [x] a container image and the CI that gates it — multi-stage build whose
       test stage gates the wheel, published to GHCR on a version tag
 - [ ] publish to PyPI, so installing stops meaning a git URL
-- [x] `groundtruth.server` — an optional, self-hosted ingest API and the
+- [x] `groundtruth_review.server` — an optional, self-hosted ingest API and the
       three-table Postgres schema behind it (`pip install
       "groundtruth-review[server]"`; `docker compose -f
       deploy/docker-compose.yml up` for local dev). Each CI adapter POSTs

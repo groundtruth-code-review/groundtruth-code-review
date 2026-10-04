@@ -1,7 +1,7 @@
 import json
 
-from groundtruth.cli import build_arg_parser, main
-from groundtruth.eval import EvalCase, ExpectedFinding, RecordedLlm, load_cases, run_case, run_suite
+from groundtruth_review.cli import build_arg_parser, main
+from groundtruth_review.eval import EvalCase, ExpectedFinding, RecordedLlm, load_cases, run_case, run_suite
 
 _HEAD = "def page_items(items, page, per_page):\n    end = page * per_page + 1\n    return items[:end]\n"
 _DIFF = (
@@ -274,7 +274,7 @@ def test_a_gate_case_that_is_never_proposed_is_untested_not_held():
 # --- one diff, two findings, judged separately ----------------------------
 
 def test_the_recorded_skeptic_can_answer_per_finding():
-    from groundtruth.eval import RecordedLlm
+    from groundtruth_review.eval import RecordedLlm
 
     llm = RecordedLlm([
         {"match": "injection", "response": {"is_real": True, "confidence": 0.95}},
@@ -287,7 +287,7 @@ def test_the_recorded_skeptic_can_answer_per_finding():
 
 
 def test_a_single_recorded_answer_still_answers_everything():
-    from groundtruth.eval import RecordedLlm
+    from groundtruth_review.eval import RecordedLlm
 
     llm = RecordedLlm({"is_real": True, "confidence": 0.7})
     assert llm.complete_json("s", "anything")["confidence"] == 0.7
@@ -296,7 +296,7 @@ def test_a_single_recorded_answer_still_answers_everything():
 # --- --live uses real models and only the recall cases --------------------
 
 def test_live_mode_builds_clients_from_config_and_skips_pipeline_cases(tmp_path, monkeypatch, capsys):
-    import groundtruth.cli as cli_module
+    import groundtruth_review.cli as cli_module
 
     built = []
 
@@ -324,7 +324,7 @@ def test_live_mode_builds_clients_from_config_and_skips_pipeline_cases(tmp_path,
 
 
 def test_live_mode_can_override_the_verifier_to_compare_providers(tmp_path, monkeypatch, capsys):
-    import groundtruth.cli as cli_module
+    import groundtruth_review.cli as cli_module
 
     built = []
 
@@ -360,7 +360,7 @@ def test_every_shipped_gate_case_names_its_stage():
 def test_a_live_run_with_failed_calls_is_not_reported_as_a_bad_model(capsys, monkeypatch, tmp_path):
     # a missing key makes every call fail; that must read as "calls failed",
     # never as "the model missed every bug"
-    import groundtruth.cli as cli_module
+    import groundtruth_review.cli as cli_module
 
     class FailingClient:
         def __init__(self, model, api_base=None, **kwargs):
@@ -383,7 +383,7 @@ def test_an_offline_run_has_no_failed_calls():
 
 
 def test_live_eval_refuses_a_misprefixed_nvidia_model_before_any_call(tmp_path, monkeypatch, capsys):
-    import groundtruth.cli as cli_module
+    import groundtruth_review.cli as cli_module
 
     def no_calls(*args, **kwargs):
         raise AssertionError("no client should be built for a config that cannot work")
@@ -399,7 +399,7 @@ def test_live_eval_refuses_a_misprefixed_nvidia_model_before_any_call(tmp_path, 
 
 # --- grading: wording, near misses, and what the gate dropped -------------
 
-from groundtruth.quality_gate import Finding, Severity  # noqa: E402
+from groundtruth_review.quality_gate import Finding, Severity  # noqa: E402
 
 
 def _f(file, line, title):

@@ -33,15 +33,15 @@ dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.6", "httpx2>=2.0"]
 server = ["fastapi>=0.115", "uvicorn>=0.30", "psycopg[binary]>=3.2"]
 
 [project.scripts]
-groundtruth = "groundtruth.cli:main"
-groundtruth-server = "groundtruth.server.__main__:main"
+groundtruth = "groundtruth_review.cli:main"
+groundtruth-server = "groundtruth_review.server.__main__:main"
 
 [project.urls]
 Homepage = "https://github.com/groundtruth-code-review/groundtruth-code-review"
 Issues = "https://github.com/groundtruth-code-review/groundtruth-code-review/issues"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/groundtruth"]
+packages = ["src/groundtruth_review"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

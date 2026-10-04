@@ -530,7 +530,7 @@ PAGES["languages"] = (
       <p>Regardless of language, the caller search skips <code>.git</code>, <code>node_modules</code>, <code>vendor</code>, <code>.venv</code>, <code>venv</code>, <code>__pycache__</code>, <code>dist</code>, <code>build</code>, <code>.mypy_cache</code> and <code>.pytest_cache</code>, and ignores files over 2&nbsp;MB. Third-party code should not consume a review's context budget, and a finding raised against vendored code is a finding nobody in your repository can act on.</p>
 
       <h2>Adding a language</h2>
-      <p>The caller list is one set in <code>src/groundtruth/context_engine/callers.py</code>. Adding an extension there is a one-line change, and both search paths read the same constant, so they cannot fall out of step. A pull request adding your language is welcome; a case in <code>cases/</code> exercising it is even more welcome.</p>
+      <p>The caller list is one set in <code>src/groundtruth_review/context_engine/callers.py</code>. Adding an extension there is a one-line change, and both search paths read the same constant, so they cannot fall out of step. A pull request adding your language is welcome; a case in <code>cases/</code> exercising it is even more welcome.</p>
 """,
 )
 

@@ -1,5 +1,5 @@
-from groundtruth.context_engine.diffmap import parse_diff
-from groundtruth.context_engine.engine import build_context
+from groundtruth_review.context_engine.diffmap import parse_diff
+from groundtruth_review.context_engine.engine import build_context
 
 HEAD_INVOICE = (
     "class Billing:\n"

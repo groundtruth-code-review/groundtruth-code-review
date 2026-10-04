@@ -3,7 +3,7 @@ import subprocess
 
 import pytest
 
-from groundtruth.cli import (
+from groundtruth_review.cli import (
     CostCeilingExceeded,
     ReviewOutcome,
     _windowed_hunk_text,
@@ -11,9 +11,9 @@ from groundtruth.cli import (
     render_text,
     run_review,
 )
-from groundtruth.config import Config
-from groundtruth.llm import CostEstimate
-from groundtruth.quality_gate import DropStage
+from groundtruth_review.config import Config
+from groundtruth_review.llm import CostEstimate
+from groundtruth_review.quality_gate import DropStage
 
 
 def _git(repo, *args):
@@ -313,7 +313,7 @@ def test_render_text_handles_no_findings():
 def test_main_model_flag_overrides_config_end_to_end(repo, capsys):
     # Real main() entrypoint, real (unmocked) cost estimator — --dry-run
     # means no network call happens, so this is safe to run for real.
-    from groundtruth.cli import main
+    from groundtruth_review.cli import main
 
     repo_path, base_sha = repo
     exit_code = main([
@@ -594,7 +594,7 @@ def test_a_summary_over_the_ceiling_is_skipped_not_fatal(repo):
 def test_each_role_is_built_with_its_own_model(repo, monkeypatch):
     # a cross-provider config only means something if the verifier really is
     # a separate client; this fails if every role ever collapses onto `model`
-    import groundtruth.cli as cli_module
+    import groundtruth_review.cli as cli_module
 
     built = []
 
@@ -616,7 +616,7 @@ def test_each_role_is_built_with_its_own_model(repo, monkeypatch):
 def test_each_client_is_built_with_the_endpoint_for_its_own_model(repo, monkeypatch):
     # the pairing that matters: a model must never be sent to another
     # provider's endpoint
-    import groundtruth.cli as cli_module
+    import groundtruth_review.cli as cli_module
 
     built = []
 
@@ -639,7 +639,7 @@ def test_each_client_is_built_with_the_endpoint_for_its_own_model(repo, monkeypa
 
 
 def test_a_cli_flag_overrides_the_environment(monkeypatch):
-    from groundtruth.cli import _apply_endpoint_flags, build_arg_parser
+    from groundtruth_review.cli import _apply_endpoint_flags, build_arg_parser
 
     monkeypatch.setenv("GROUNDTRUTH_BASE_URL", "https://from-env")
     args = build_arg_parser().parse_args(["review", "--base", "main", "--base-url", "https://from-flag/"])
@@ -648,12 +648,12 @@ def test_a_cli_flag_overrides_the_environment(monkeypatch):
 
 
 def load_config_for_test():
-    from groundtruth.config import load_config
+    from groundtruth_review.config import load_config
     return load_config(None)
 
 
 def test_each_client_gets_the_settings_for_its_own_model(repo, monkeypatch):
-    import groundtruth.cli as cli_module
+    import groundtruth_review.cli as cli_module
 
     built = []
 
@@ -681,7 +681,7 @@ def test_stdout_stays_valid_json_when_a_library_prints_and_a_call_fails(repo, mo
     # LiteLLM printed a banner to stdout on every failed call, which made
     # --format json unparseable -- so the GitHub adapter crashed and posted
     # nothing, not even the warning that the review had failed
-    import groundtruth.cli as cli_module
+    import groundtruth_review.cli as cli_module
 
     class NoisyFailingClient:
         def __init__(self, *args, **kwargs):

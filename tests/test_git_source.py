@@ -2,7 +2,7 @@ import subprocess
 
 import pytest
 
-from groundtruth.git_source import GitError, git_diff, load_sources, merge_base, show_file
+from groundtruth_review.git_source import GitError, git_diff, load_sources, merge_base, show_file
 
 
 def _git(repo, *args):

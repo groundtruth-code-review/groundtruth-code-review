@@ -1,4 +1,4 @@
-from groundtruth.context_engine.diffmap import parse_diff, render_file_diff
+from groundtruth_review.context_engine.diffmap import parse_diff, render_file_diff
 
 SIMPLE_DIFF = """diff --git a/app.py b/app.py
 index 0000000..1111111 100644

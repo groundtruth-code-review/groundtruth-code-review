@@ -2,7 +2,7 @@ import shutil
 
 import pytest
 
-from groundtruth.context_engine.callers import find_callers
+from groundtruth_review.context_engine.callers import find_callers
 
 
 def _write(root, rel_path, content):
@@ -76,7 +76,7 @@ def test_short_name_is_rejected_to_avoid_noise(tmp_path):
 # --- the two search paths must agree -------------------------------------
 
 def test_rg_filters_exclude_every_directory_the_python_walk_skips():
-    from groundtruth.context_engine.callers import _SKIP_DIRS, rg_filters
+    from groundtruth_review.context_engine.callers import _SKIP_DIRS, rg_filters
 
     args = rg_filters()
     for directory in _SKIP_DIRS:
@@ -86,7 +86,7 @@ def test_rg_filters_exclude_every_directory_the_python_walk_skips():
 def test_rg_exclusions_come_after_the_extension_globs():
     # ripgrep gives later globs precedence, so excluding before including
     # lets *.py re-admit node_modules/pkg.py
-    from groundtruth.context_engine.callers import rg_filters
+    from groundtruth_review.context_engine.callers import rg_filters
 
     args = rg_filters()
     last_include = max(i for i, a in enumerate(args) if a.startswith("*."))
@@ -95,7 +95,7 @@ def test_rg_exclusions_come_after_the_extension_globs():
 
 
 def test_rg_filters_include_every_searchable_extension_and_cap_size():
-    from groundtruth.context_engine.callers import _MAX_FILE_BYTES, _SEARCHABLE_EXT, rg_filters
+    from groundtruth_review.context_engine.callers import _MAX_FILE_BYTES, _SEARCHABLE_EXT, rg_filters
 
     args = rg_filters()
     for ext in _SEARCHABLE_EXT:
@@ -107,7 +107,7 @@ def test_rg_filters_include_every_searchable_extension_and_cap_size():
 def test_the_rg_path_and_the_python_path_return_the_same_hits(tmp_path):
     # this is the test the container build runs and a bare runner skips:
     # the image installs ripgrep, so the fast path is exercised there
-    from groundtruth.context_engine.callers import _search_pure_python, _search_with_rg
+    from groundtruth_review.context_engine.callers import _search_pure_python, _search_with_rg
 
     (tmp_path / "app.py").write_text("def caller():\n    return helper()\n")
     (tmp_path / "node_modules").mkdir()

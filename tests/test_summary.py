@@ -1,5 +1,5 @@
-from groundtruth.quality_gate import Finding, GateVerdict, Severity
-from groundtruth.summary import mentions_only_verified_files, summary_prompts, write_summary
+from groundtruth_review.quality_gate import Finding, GateVerdict, Severity
+from groundtruth_review.summary import mentions_only_verified_files, summary_prompts, write_summary
 
 
 def _verdict(file="invoice.py", line=2, title="Discount can exceed 100%"):
