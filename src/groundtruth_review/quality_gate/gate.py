@@ -9,7 +9,9 @@ Order matters and is deliberate:
      used, because a bogus line produces a bogus fingerprint.
   3. Dedupe — a fingerprint lookup against everything already posted on this
      PR. Also free. No point cross-examining a finding that's already live.
-  4. Skeptic cross-examination + confidence multiplication.
+  4. Skeptic cross-examination + confidence multiplication. A finding that
+     carries a `proof` (the parser established it) skips this step: the
+     checks above still apply to it, but there is no opinion left to ask.
   5. Rank and cap — survivors sorted by severity-weighted combined
      confidence, truncated to `max_findings`; nothing here rejects a
      finding, it just decides posting order and where the cutoff falls.
@@ -119,6 +121,23 @@ def run_gate(
                     fingerprint=fp,
                     dropped_at=DropStage.DEDUPE,
                     reason="already posted on this PR (same file, same code, same category)",
+                )
+            )
+            continue
+
+        if finding.proof:
+            # Established by parsing, not proposed by a model. It still had to
+            # pass every free check above -- the quote is real, the line is
+            # changed, it isn't a repeat -- but a skeptic's opinion cannot
+            # improve on a fact, and asking would put a paid call, and a way
+            # to be talked out of something true, in front of it.
+            seen.add(fp)
+            report.posted.append(
+                GateVerdict(
+                    finding=finding,
+                    posted=True,
+                    fingerprint=fp,
+                    combined_confidence=max(0.0, min(1.0, finding.confidence)),
                 )
             )
             continue

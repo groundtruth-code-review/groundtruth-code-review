@@ -260,7 +260,7 @@
         </tr>
         <tr>
           <td>Skeptic pass</td>
-          <td>A second LLM call judges whether the finding is real and worth fixing; its confidence is multiplied with the first model's</td>
+          <td>A second LLM call judges whether the finding is real and worth fixing; its confidence is multiplied with the first model's. Skipped for the one kind of finding the parser can prove</td>
           <td>Averaging lets a confident wrong answer outvote a doubtful right one. Multiplying makes doubt contagious</td>
         </tr>
         <tr>
@@ -497,8 +497,8 @@ Reviewed with `anthropic/claude-sonnet-5` &middot; estimated $0.0032.&lt;/sub&gt
     </div>
     <div class="feature-card">
       <div class="f-num">Running checks</div>
-      <h4>Their checks run; ours read</h4>
-      <p>CodeRabbit runs linters and security analyzers beside the model, and confirms a suspicion by executing a command and attaching what came back. Our gate never runs anything. It confirms the quote is in the diff, the line is one you changed, and a second model agrees, so a claim like &ldquo;this call can return None&rdquo; is judged by a model reading the code, not confirmed by running it.</p>
+      <h4>Their checks run; ours mostly read</h4>
+      <p>CodeRabbit runs linters and security analyzers beside the model, and confirms a suspicion by executing a command and attaching what came back. We run nothing: executing a pull request&rsquo;s own tooling inside your CI means running whatever the pull request put there. We do one check without a model, by parsing. When a Python signature changes, each caller is tested against the new parameters, and a call that can&rsquo;t bind is reported with the proof. Every other claim, such as &ldquo;this call can return None&rdquo;, is judged by a second model reading the code, not confirmed by running it.</p>
     </div>
     <div class="feature-card">
       <div class="f-num">Learning from your team</div>

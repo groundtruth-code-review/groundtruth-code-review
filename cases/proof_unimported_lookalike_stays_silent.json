@@ -1,0 +1,24 @@
+{
+  "name": "proof_unimported_lookalike_stays_silent",
+  "track": "pipeline",
+  "about": "checkout.py calls a calculate_discount it imported from somewhere else, not from invoice.py. The name matches; the function does not. The parser only accuses a call it can tie to the changed file.",
+  "diff": "diff --git a/invoice.py b/invoice.py\n--- a/invoice.py\n+++ b/invoice.py\n@@ -1,2 +1,2 @@\n-def calculate_discount(price):\n-    return price * 0.9\n+def calculate_discount(price, promos):\n+    return price * (1 - sum(promos))\n",
+  "head_sources": {
+    "invoice.py": "def calculate_discount(price, promos):\n    return price * (1 - sum(promos))\n",
+    "checkout.py": "from vendor_pricing import calculate_discount\n\n\ndef checkout(price):\n    return calculate_discount(price)\n"
+  },
+  "base_sources": {
+    "invoice.py": "def calculate_discount(price):\n    return price * 0.9\n"
+  },
+  "expected_findings": [],
+  "recorded": {
+    "review": {
+      "findings": []
+    },
+    "skeptic": {
+      "is_real": false,
+      "is_actionable": false,
+      "confidence": 0.0
+    }
+  }
+}

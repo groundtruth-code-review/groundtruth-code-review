@@ -154,6 +154,8 @@ class Config:
     context_token_budget: int = 25_000
     max_diff_tokens_per_call: int = 6_000
     summary: bool = True
+    # Findings the parser can establish without asking a model (see proof.py).
+    proofs: bool = True
     dimensions: list[str] = field(default_factory=lambda: list(_DEFAULT_DIMENSIONS))
 
     @property
@@ -261,6 +263,15 @@ def _reject_embedded_keys(data: dict, source: str) -> None:
             )
 
 
+def _require_bool(raw: dict, key: str, default: bool, where: str) -> bool:
+    value = raw.get(key, default)
+    if not isinstance(value, bool):
+        # YAML's "false" is a bool, but a quoted "false" is a truthy string;
+        # reading it as True would do the opposite of what was written.
+        raise ConfigError(f"{where}: {key} must be true or false, not {value!r}")
+    return value
+
+
 def load_config(path: Path | str | None) -> Config:
     """Read the file, then the environment. The environment is applied even
     when there is no file at all, so an endpoint set in CI works for a
@@ -289,6 +300,7 @@ def load_config(path: Path | str | None) -> Config:
         context_token_budget=raw.get("context_token_budget", defaults.context_token_budget),
         max_diff_tokens_per_call=raw.get("max_diff_tokens_per_call", defaults.max_diff_tokens_per_call),
         summary=raw.get("summary", defaults.summary),
+        proofs=_require_bool(raw, "proofs", defaults.proofs, str(path)),
         dimensions=raw.get("dimensions", list(_DEFAULT_DIMENSIONS)),
         model_params=_validate_params(raw.get("model_params"), "model_params", str(path)),
         verify_model_params=(

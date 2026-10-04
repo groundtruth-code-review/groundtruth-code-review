@@ -22,6 +22,7 @@ from .config import Config, ConfigError, load_config, normalize_base_url
 from .context_engine import ContextBlock, DiffMap, build_context, parse_diff, render_file_diff
 from .git_source import GitError, git_diff, load_sources
 from .llm import CostEstimate, LlmClient
+from .proof import prove_signature_breaks
 from .quality_gate import (
     SKEPTIC_CALL_FAILED,
     GateVerdict,
@@ -206,6 +207,8 @@ def _estimate_skeptic_cost(
     model, so this is an upper bound — the right side to err on for a
     ceiling.
     """
+    # A proven finding skips the skeptic, so it is not a call to price.
+    candidates = [c for c in candidates if not c.proof]
     if not candidates:
         return None
     evidence = "\n---\n".join(evidence_texts)
@@ -298,6 +301,13 @@ def run_review(
         max_diff_tokens_per_call=config.max_diff_tokens_per_call,
         tally=tally,
     )
+    if config.proofs:
+        # Ahead of the model's candidates, so when both describe the same
+        # break the proven one is posted and the duplicate is what dedupe drops.
+        candidates = (
+            prove_signature_breaks(repo, ctx.signature_changes, diffmap, head_sources, base_sources)
+            + candidates
+        )
 
     evidence_texts = [diff_text] + [block.text for block in ctx.blocks]
 
@@ -372,6 +382,8 @@ def _verdict_to_dict(verdict: GateVerdict) -> dict:
         "confidence": verdict.combined_confidence,
         "fingerprint": verdict.fingerprint,
     }
+    if f.proof:
+        d["proof"] = f.proof
     if not verdict.posted:
         d["dropped_at"] = verdict.dropped_at.value if verdict.dropped_at else "ranked_out"
         d["reason"] = verdict.reason
@@ -585,9 +597,17 @@ def _run_eval(args) -> int:
             " -- this makes real, billed model calls",
             file=sys.stderr,
         )
+        if not args.no_proofs:
+            print(
+                "note: findings the parser can prove are caught without the model, and are "
+                "reported as such; pass --no-proofs to measure the model alone",
+                file=sys.stderr,
+            )
 
     with contextlib.redirect_stdout(sys.stderr):
-        report = run_suite(cases, min_confidence=args.min_confidence, **clients)
+        report = run_suite(
+            cases, min_confidence=args.min_confidence, proofs=not args.no_proofs, **clients
+        )
     print(json.dumps(report_to_dict(report), indent=2) if args.format == "json" else render_report(report))
 
     failures = []
@@ -667,6 +687,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--no-summary", action="store_true",
         help="Skip the summary call even when the config enables it.",
     )
+    review.add_argument(
+        "--no-proofs", action="store_true",
+        help="Don't generate findings the parser can prove; leave everything to the model.",
+    )
     _add_endpoint_flags(review)
 
     evaluate = sub.add_parser(
@@ -694,6 +718,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help=(
             "Run the recall cases against real models instead of recorded answers. "
             "Needs provider keys and makes billed calls."
+        ),
+    )
+    evaluate.add_argument(
+        "--no-proofs", action="store_true",
+        help=(
+            "Turn off findings the parser can prove, so the result measures the model "
+            "alone. Without it, a case the parser proves is caught whatever the model does."
         ),
     )
     evaluate.add_argument(
@@ -730,6 +761,8 @@ def main(argv: list[str] | None = None) -> int:
                 config = replace(config, model=args.model)
             if args.no_summary:
                 config = replace(config, summary=False)
+            if args.no_proofs:
+                config = replace(config, proofs=False)
             config = _apply_endpoint_flags(config, args)
             config.check_models_match_endpoints()
             # Anything a library prints while the review runs goes to stderr.

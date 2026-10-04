@@ -341,3 +341,21 @@ def test_every_stage_is_checked():
     with pytest.raises(ConfigError) as exc:
         c.check_models_match_endpoints()
     assert "verify" in str(exc.value)
+
+
+def test_proofs_are_on_by_default():
+    assert Config().proofs is True
+
+
+def test_proofs_can_be_turned_off_in_the_file(tmp_path):
+    path = tmp_path / ".groundtruth.yml"
+    path.write_text("proofs: false\n")
+    assert load_config(path).proofs is False
+
+
+def test_a_quoted_false_is_refused_rather_than_read_as_true(tmp_path):
+    # the string "false" is truthy; accepting it would do the opposite of what was written
+    path = tmp_path / ".groundtruth.yml"
+    path.write_text('proofs: "false"\n')
+    with pytest.raises(ConfigError, match="proofs must be true or false"):
+        load_config(path)

@@ -1,7 +1,7 @@
-from .callers import CallerHit, find_callers, rg_filters
+from .callers import CallerHit, count_definitions, find_callers, rg_filters
 from .chunker import CodeChunk, enclosing_chunks, parse_file
 from .diffmap import DiffMap, FileDiff, Hunk, parse_diff, render_file_diff
-from .engine import ContextBlock, ReviewContext, build_context
+from .engine import ContextBlock, ReviewContext, SignatureChange, build_context
 
 __all__ = [
     "DiffMap",
@@ -14,8 +14,10 @@ __all__ = [
     "enclosing_chunks",
     "CallerHit",
     "find_callers",
+    "count_definitions",
     "rg_filters",
     "ContextBlock",
     "ReviewContext",
+    "SignatureChange",
     "build_context",
 ]

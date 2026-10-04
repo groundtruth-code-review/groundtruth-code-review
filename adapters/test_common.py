@@ -43,6 +43,17 @@ def test_summary_survives_a_missing_model_and_cost():
     assert "Reviewed with" not in body
 
 
+def test_a_proven_finding_says_it_was_checked_by_parsing():
+    proven = {**FINDING, "proof": "Checked by parsing, not by a model: checkout.py:5 does not pass 'promos'"}
+    assert inline_comment_body(proven).endswith(
+        "_Checked by parsing, not by a model: checkout.py:5 does not pass 'promos'_"
+    )
+
+
+def test_a_model_proposed_finding_carries_no_proof_line():
+    assert "Checked by parsing" not in inline_comment_body(FINDING)
+
+
 def test_inline_body_keeps_the_quoted_code_in_a_fence():
     body = inline_comment_body(FINDING)
     assert body.startswith("**HIGH**")

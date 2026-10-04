@@ -183,3 +183,39 @@ def test_a_caller_in_an_untouched_file_is_still_included(tmp_path):
 
     labels = " ".join(block.label for block in ctx.blocks)
     assert "checkout.py#L3-4 (caller of calculate_discount, signature changed)" in labels
+
+
+def _signature_changes(tmp_path, base: str, head: str):
+    (tmp_path / "m.py").write_text(head)
+    diff = (
+        "diff --git a/m.py b/m.py\n--- a/m.py\n+++ b/m.py\n"
+        + "".join(
+            f"@@ -1,{len(base.splitlines())} +1,{len(head.splitlines())} @@\n"
+            + "".join(f"-{line}\n" for line in base.splitlines())
+            + "".join(f"+{line}\n" for line in head.splitlines())
+            for _ in [0]
+        )
+    )
+    ctx = build_context(tmp_path, parse_diff(diff), {"m.py": head}, {"m.py": base})
+    return ctx.signature_changes
+
+
+def test_a_parameter_added_to_a_wrapped_signature_counts_as_a_signature_change(tmp_path):
+    # the first line is `def f(` both before and after; only a later line changed
+    base = "def f(\n    a,\n):\n    return a\n"
+    head = "def f(\n    a,\n    b,\n):\n    return a\n"
+    changes = _signature_changes(tmp_path, base, head)
+    assert [c.name for c in changes] == ["f"]
+
+
+def test_a_changed_return_annotation_on_one_line_still_counts(tmp_path):
+    base = "def f(a) -> int:\n    return 1\n"
+    head = "def f(a) -> str:\n    return 'x'\n"
+    changes = _signature_changes(tmp_path, base, head)
+    assert [c.name for c in changes] == ["f"]
+
+
+def test_a_change_to_the_body_of_a_wrapped_signature_function_does_not_count(tmp_path):
+    base = "def f(\n    a,\n    b,\n):\n    return a\n"
+    head = "def f(\n    a,\n    b,\n):\n    return b\n"
+    assert _signature_changes(tmp_path, base, head) == []

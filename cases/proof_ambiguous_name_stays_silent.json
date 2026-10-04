@@ -1,0 +1,25 @@
+{
+  "name": "proof_ambiguous_name_stays_silent",
+  "track": "pipeline",
+  "about": "Two functions are called calculate_discount. A call that is wrong for one may be right for the other, and name matching cannot tell which this is, so the parser declines to guess.",
+  "diff": "diff --git a/invoice.py b/invoice.py\n--- a/invoice.py\n+++ b/invoice.py\n@@ -1,2 +1,2 @@\n-def calculate_discount(price):\n-    return price * 0.9\n+def calculate_discount(price, promos):\n+    return price * (1 - sum(promos))\n",
+  "head_sources": {
+    "invoice.py": "def calculate_discount(price, promos):\n    return price * (1 - sum(promos))\n",
+    "checkout.py": "from invoice import calculate_discount\n\n\ndef checkout(price):\n    return calculate_discount(price)\n",
+    "legacy.py": "def calculate_discount(a, b, c):\n    return a\n"
+  },
+  "base_sources": {
+    "invoice.py": "def calculate_discount(price):\n    return price * 0.9\n"
+  },
+  "expected_findings": [],
+  "recorded": {
+    "review": {
+      "findings": []
+    },
+    "skeptic": {
+      "is_real": false,
+      "is_actionable": false,
+      "confidence": 0.0
+    }
+  }
+}

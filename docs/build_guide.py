@@ -219,6 +219,7 @@ dimensions: [correctness, security, conventions]
             <tr><td>context_token_budget</td><td>25000</td><td>Token ceiling for the assembled context. Optional blocks shrink to a signature line before being dropped, and every cut is reported.</td></tr>
             <tr><td>max_diff_tokens_per_call</td><td>6000</td><td>A file whose diff is bigger is reviewed in hunk groups rather than one oversized call. No hunk is ever skipped.</td></tr>
             <tr><td>summary</td><td>true</td><td>Whether to make the stage-6 call that groups findings into one sentence at the top of the comment.</td></tr>
+            <tr><td>proofs</td><td>true</td><td>Whether to post findings the parser can prove without asking a model: a changed Python signature that a caller can no longer satisfy. Off, only the model proposes. See <a href="languages.html#findings-the-parser-proves">what it proves</a>.</td></tr>
             <tr><td>dimensions</td><td>correctness, security, conventions</td><td>What the review pass is told to look for.</td></tr>
           </tbody>
         </table>
@@ -332,6 +333,7 @@ groundtruth review --base main \
             <tr><td>--model</td><td>Overrides <code>model</code> for this run.</td></tr>
             <tr><td>--dry-run</td><td>Estimate and stop. No model call, no key needed.</td></tr>
             <tr><td>--no-summary</td><td>Skip the stage-6 summary call even if the config enables it.</td></tr>
+            <tr><td>--no-proofs</td><td>Don't generate findings the parser can prove. On <code>eval</code>, this is how you measure the model alone.</td></tr>
             <tr><td>--seen-fingerprint</td><td>A fingerprint already posted on this pull request; repeatable. Adapters pass these back automatically.</td></tr>
             <tr><td>--format</td><td><code>json</code> (what adapters read) or <code>text</code> (what humans read).</td></tr>
             <tr><td>--diff</td><td>Read the diff from a file or stdin instead of running git.</td></tr>
@@ -529,6 +531,17 @@ PAGES["languages"] = (
       <h2>Directories never searched</h2>
       <p>Regardless of language, the caller search skips <code>.git</code>, <code>node_modules</code>, <code>vendor</code>, <code>.venv</code>, <code>venv</code>, <code>__pycache__</code>, <code>dist</code>, <code>build</code>, <code>.mypy_cache</code> and <code>.pytest_cache</code>, and ignores files over 2&nbsp;MB. Third-party code should not consume a review's context budget, and a finding raised against vendored code is a finding nobody in your repository can act on.</p>
 
+      <h2>Findings the parser proves</h2>
+      <p>For one kind of bug the reviewer does not need a model's opinion. When a Python function's signature changes, each place that calls it is parsed and tested against the new parameter list. A call that can no longer bind &mdash; a missing required argument, one too many, an unknown keyword &mdash; and that <i>could</i> have bound to the old signature is a break this change caused. It is reported on the changed signature with the evidence attached, and it skips the second model, because there is nothing left to ask. Nothing is executed: the code is only parsed.</p>
+      <p>It is deliberately quiet. A call is only judged when it can be tied to the function it names:</p>
+      <ul>
+        <li>the repository defines that name exactly once;</li>
+        <li>a call from another file imports the name from the changed file's module;</li>
+        <li>a method is only checked against <code>self.name(...)</code> in its own file;</li>
+        <li>a call using <code>*args</code> or <code>**kwargs</code>, a decorated function, and a call that was already wrong before the change are all skipped.</li>
+      </ul>
+      <p>Python only. In any other language the model proposes and the second model decides, as before.</p>
+
       <h2>Adding a language</h2>
       <p>The caller list is one set in <code>src/groundtruth_review/context_engine/callers.py</code>. Adding an extension there is a one-line change, and both search paths read the same constant, so they cannot fall out of step. A pull request adding your language is welcome; a case in <code>cases/</code> exercising it is even more welcome.</p>
 """,
@@ -623,6 +636,9 @@ PAGES["faq"] = (
 
       <h2>What happens if I push twice quickly?</h2>
       <p>There is no queue, so both pushes can trigger a review that runs at the same time. Each one reads the pull request's summary comment for the fingerprints already posted, adds its own, and writes the result back &mdash; and if both reads happen before either write, the second write can overwrite the first one's additions. The cost is narrow: a finding that is still present can get re-posted once on a later push, never a finding that no longer applies. <a href="getting-started.html">The sample workflow</a> sets GitHub's <code>concurrency</code> so a second push cancels the review still running for the same pull request rather than racing it; GitLab's equivalent is <code>interruptible: true</code> plus the project's auto-cancel setting. Bitbucket Pipelines has no equivalent primitive, so the fingerprint marker is the only protection there.</p>
+
+      <h2>Does it ever post a finding without asking a second model?</h2>
+      <p>Yes, for one kind. When a Python function's signature changes and a caller can no longer satisfy it, the parser proves that from the two syntax trees, and the finding is posted with the evidence attached and no skeptic call. It still has to pass the free checks: the quote must exist, the line must be changed, and it must not repeat an earlier comment. Anything a model proposes still goes through the second model. <code>--no-proofs</code> turns the parser's findings off. See <a href="languages.html#findings-the-parser-proves">what it proves, and what it declines to say</a>.</p>
 
       <h2>Can I run it with no API cost at all?</h2>
       <p>Yes. Set <code>model: ollama/&lt;model&gt;</code> and every call goes to a local endpoint. No key, no spend, and no code leaves the machine. Review quality then depends on the local model you run.</p>

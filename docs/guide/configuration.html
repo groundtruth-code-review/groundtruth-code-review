@@ -91,6 +91,7 @@ dimensions: [correctness, security, conventions]
             <tr><td>context_token_budget</td><td>25000</td><td>Token ceiling for the assembled context. Optional blocks shrink to a signature line before being dropped, and every cut is reported.</td></tr>
             <tr><td>max_diff_tokens_per_call</td><td>6000</td><td>A file whose diff is bigger is reviewed in hunk groups rather than one oversized call. No hunk is ever skipped.</td></tr>
             <tr><td>summary</td><td>true</td><td>Whether to make the stage-6 call that groups findings into one sentence at the top of the comment.</td></tr>
+            <tr><td>proofs</td><td>true</td><td>Whether to post findings the parser can prove without asking a model: a changed Python signature that a caller can no longer satisfy. Off, only the model proposes. See <a href="languages.html#findings-the-parser-proves">what it proves</a>.</td></tr>
             <tr><td>dimensions</td><td>correctness, security, conventions</td><td>What the review pass is told to look for.</td></tr>
           </tbody>
         </table>
@@ -200,6 +201,7 @@ groundtruth review --base main   --model anthropic/claude-sonnet-5   --verify-ba
             <tr><td>--model</td><td>Overrides <code>model</code> for this run.</td></tr>
             <tr><td>--dry-run</td><td>Estimate and stop. No model call, no key needed.</td></tr>
             <tr><td>--no-summary</td><td>Skip the stage-6 summary call even if the config enables it.</td></tr>
+            <tr><td>--no-proofs</td><td>Don't generate findings the parser can prove. On <code>eval</code>, this is how you measure the model alone.</td></tr>
             <tr><td>--seen-fingerprint</td><td>A fingerprint already posted on this pull request; repeatable. Adapters pass these back automatically.</td></tr>
             <tr><td>--format</td><td><code>json</code> (what adapters read) or <code>text</code> (what humans read).</td></tr>
             <tr><td>--diff</td><td>Read the diff from a file or stdin instead of running git.</td></tr>

@@ -186,3 +186,39 @@ def find_callers(
 
     hits.sort(key=lambda h: _rank_key(h, from_path))
     return hits[:limit]
+
+
+def count_definitions(repo_root: Path | str, name: str) -> int:
+    """How many functions called `name` the repository defines.
+
+    The caller search above throws definition lines away on purpose; this is
+    the same search keeping only them. It exists so a check that depends on
+    knowing *which* function a call refers to can first ask whether there is
+    only one candidate -- with two same-named functions, a call site that
+    looks wrong for one may be perfectly right for the other, and name
+    matching alone can't tell them apart. Raises if the search itself fails:
+    "I couldn't count" must not read as "there is exactly one."
+    """
+    root = Path(repo_root)
+    pattern = r"\b(?:def|function|func|fn)\s+" + re.escape(name) + r"\s*\("
+    if shutil.which("rg"):
+        proc = subprocess.run(
+            ["rg", "--line-number", "--no-heading", *rg_filters(), pattern, str(root)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if proc.returncode not in (0, 1):  # 1 just means "no matches"
+            raise RuntimeError(f"definition search failed: {proc.stderr.strip()[:200]}")
+        return len([line for line in proc.stdout.splitlines() if line.strip()])
+
+    compiled = re.compile(pattern)
+    total = 0
+    for path in root.rglob("*"):
+        if not path.is_file() or any(part in _SKIP_DIRS for part in path.parts):
+            continue
+        if path.suffix not in _SEARCHABLE_EXT or path.stat().st_size > _MAX_FILE_BYTES:
+            continue
+        total += sum(1 for line in path.read_text(encoding="utf-8", errors="ignore").splitlines()
+                     if compiled.search(line))
+    return total

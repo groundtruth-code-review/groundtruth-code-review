@@ -1,0 +1,24 @@
+{
+  "name": "proof_compatible_change_stays_silent",
+  "track": "pipeline",
+  "about": "The new parameter has a default, so the untouched caller still binds. Nothing is broken, and the parser must say nothing.",
+  "diff": "diff --git a/invoice.py b/invoice.py\n--- a/invoice.py\n+++ b/invoice.py\n@@ -1,2 +1,2 @@\n-def calculate_discount(price):\n+def calculate_discount(price, promos=None):\n     return price * 0.9\n",
+  "head_sources": {
+    "invoice.py": "def calculate_discount(price, promos=None):\n    return price * 0.9\n",
+    "checkout.py": "from invoice import calculate_discount\n\n\ndef checkout(price):\n    return calculate_discount(price)\n"
+  },
+  "base_sources": {
+    "invoice.py": "def calculate_discount(price):\n    return price * 0.9\n"
+  },
+  "expected_findings": [],
+  "recorded": {
+    "review": {
+      "findings": []
+    },
+    "skeptic": {
+      "is_real": false,
+      "is_actionable": false,
+      "confidence": 0.0
+    }
+  }
+}

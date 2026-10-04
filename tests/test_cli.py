@@ -713,3 +713,56 @@ def test_a_failed_call_logs_why(repo, caplog):
         run_review(repo_path, base=base_sha, head="HEAD", llm=BrokenLlm())
     assert "review_call_failed" in caplog.text
     assert "provider unavailable" in caplog.text
+
+
+@pytest.fixture
+def broken_caller_repo(tmp_path):
+    """invoice.py gains a required argument; checkout.py (untouched) still passes one."""
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "config", "user.email", "test@example.com")
+    _git(tmp_path, "config", "user.name", "Test")
+    (tmp_path / "invoice.py").write_text("def calculate_discount(price):\n    return price * 0.9\n")
+    (tmp_path / "checkout.py").write_text(
+        "from invoice import calculate_discount\n\n\n"
+        "def checkout(price):\n    return calculate_discount(price)\n"
+    )
+    _git(tmp_path, "add", ".")
+    _git(tmp_path, "commit", "-q", "-m", "base")
+    base_sha = subprocess.run(
+        ["git", "-C", str(tmp_path), "rev-parse", "HEAD"], capture_output=True, text=True
+    ).stdout.strip()
+    (tmp_path / "invoice.py").write_text(
+        "def calculate_discount(price, promos):\n    return price * (1 - sum(promos))\n"
+    )
+    _git(tmp_path, "add", ".")
+    _git(tmp_path, "commit", "-q", "-m", "head")
+    return tmp_path, base_sha
+
+
+def test_a_broken_caller_is_posted_with_a_proof_when_the_model_proposes_nothing(broken_caller_repo):
+    repo_path, base_sha = broken_caller_repo
+    llm = FakeLlm(review_response={"findings": []})
+    outcome = run_review(repo_path, base=base_sha, head="HEAD", llm=llm)
+
+    (finding,) = outcome.findings
+    assert finding.finding.proof.startswith("Checked by parsing")
+    assert finding.finding.file == "invoice.py"
+    # nothing was left for a second model to judge, so none was asked
+    assert llm.skeptic_calls == 0
+    payload = json.loads(render_json(outcome))
+    assert payload["findings"][0]["proof"] == finding.finding.proof
+
+
+def test_proofs_off_leaves_everything_to_the_model(broken_caller_repo):
+    repo_path, base_sha = broken_caller_repo
+    llm = FakeLlm(review_response={"findings": []})
+    outcome = run_review(repo_path, base=base_sha, head="HEAD", llm=llm, config=Config(proofs=False))
+    assert outcome.findings == []
+
+
+def test_a_proven_finding_is_not_priced_as_a_skeptic_call():
+    from groundtruth_review.cli import _estimate_skeptic_cost
+    from groundtruth_review.quality_gate import Finding, Severity
+
+    proven = Finding("a.py", 1, "correctness", Severity.HIGH, 0.95, "t", "q", proof="parsed")
+    assert _estimate_skeptic_cost([proven], ["evidence"], FakeLlm()) is None

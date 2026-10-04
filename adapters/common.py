@@ -163,12 +163,18 @@ def inline_comment_body(finding: dict) -> str:
     indentation: how deeply a line is nested is often part of what the
     finding is about. Only stray newlines and trailing spaces come off.
     """
-    return (
+    body = (
         f"**{finding['severity'].upper()}** \u00b7 {finding['category']} "
         f"\u00b7 confidence {finding['confidence']:.2f}\n\n"
         f"{finding['title']}\n\n"
         f"```\n{finding['quoted_code'].strip(chr(10)).rstrip()}\n```"
     )
+    # A finding the parser established says so, and says how. Readers can then
+    # tell "a model thinks so" from "this is true of the code", which is the
+    # difference between a comment worth weighing and one worth fixing.
+    if finding.get("proof"):
+        body += f"\n\n_{finding['proof']}_"
+    return body
 
 
 def run_groundtruth_review(

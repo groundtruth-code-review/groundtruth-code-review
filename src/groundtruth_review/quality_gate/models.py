@@ -32,6 +32,9 @@ class Finding:
     confidence: float  # the reviewer model's own self-assessment, 0..1
     title: str
     quoted_code: str  # the exact evidence this finding is about — must exist in the diff
+    # Empty for what a model proposed. Set, in plain words, when the parser
+    # established the claim: the gate then has nothing to ask a second model.
+    proof: str = ""
 
 
 class DropStage(str, Enum):

@@ -103,7 +103,7 @@ so paid calls are only spent on candidates that could survive.
 | Quote exists | Whitespace-insensitive text match against the diff and context | Removes invented code before anything else runs |
 | Line is in the diff | The reported line must fall inside a changed hunk of that file | A quote can be real while its line number is wrong; that finding used to pass, then fail silently when the platform refused to place a comment off the diff |
 | Not a duplicate | SHA-1 fingerprint of file, surrounding code and category, never the model's wording | A reworded finding on untouched code keeps the same ID, so re-runs don't repeat comments |
-| Skeptic pass | A second LLM call judges whether the finding is real and worth fixing; its confidence is multiplied with the first model's | Averaging lets a confident wrong answer outvote a doubtful right one. Multiplying makes doubt contagious |
+| Skeptic pass | A second LLM call judges whether the finding is real and worth fixing; its confidence is multiplied with the first model's. Skipped for the one kind of finding the parser can prove (a Python caller that can no longer bind to a changed signature) | Averaging lets a confident wrong answer outvote a doubtful right one. Multiplying makes doubt contagious |
 | Rank and cap | Sorted by severity weight × confidence, trimmed to a maximum | Keeps reviews short, so the comments people do see are the ones worth reading |
 
 Every rejected finding records which check dropped it and why, which is what makes

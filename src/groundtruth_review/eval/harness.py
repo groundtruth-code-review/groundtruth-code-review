@@ -34,6 +34,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..context_engine import build_context, parse_diff
+from ..proof import prove_signature_breaks
 from ..quality_gate import (
     SKEPTIC_CALL_FAILED,
     DropStage,
@@ -147,6 +148,9 @@ class CaseResult:
     caught: list[ExpectedFinding] = field(default_factory=list)
     # (expected, stage, what the verifier said) -- see `verifier_said`
     gated: list[tuple[ExpectedFinding, str, str]] = field(default_factory=list)
+    # Caught findings the parser established. They are in `caught` too; this
+    # says which of those say nothing about the model.
+    proven: list[ExpectedFinding] = field(default_factory=list)
     missed: list[ExpectedFinding] = field(default_factory=list)
     false_positives: list[Finding] = field(default_factory=list)
     # assertions that the gate rejected something it was supposed to reject
@@ -192,6 +196,10 @@ class EvalReport:
     @property
     def gated_total(self) -> int:
         return sum(len(case.gated) for case in self.cases)
+
+    @property
+    def proven_total(self) -> int:
+        return sum(len(case.proven) for case in self.cases)
 
     @property
     def missed_total(self) -> int:
@@ -325,7 +333,9 @@ def verifier_said(verdict: GateVerdict, min_confidence: float) -> str:
     )
 
 
-def run_case(case: EvalCase, review_llm=None, verify_llm=None, min_confidence: float = 0.7) -> CaseResult:
+def run_case(
+    case: EvalCase, review_llm=None, verify_llm=None, min_confidence: float = 0.7, proofs: bool = True
+) -> CaseResult:
     """Run one case through the real context engine, reviewer and gate.
 
     The case's sources are written to a temporary directory because the
@@ -355,6 +365,13 @@ def run_case(case: EvalCase, review_llm=None, verify_llm=None, min_confidence: f
 
         tally = CallTally()
         candidates = propose_findings_for_diffmap(diffmap, ctx.blocks, review_llm, tally=tally)
+        if proofs:
+            candidates = (
+                prove_signature_breaks(
+                    root, ctx.signature_changes, diffmap, case.head_sources, case.base_sources
+                )
+                + candidates
+            )
         result.review_calls = tally.made
         result.review_failures = tally.failed
         evidence = [case.diff] + [block.text for block in ctx.blocks]
@@ -385,6 +402,8 @@ def run_case(case: EvalCase, review_llm=None, verify_llm=None, min_confidence: f
         if hit is not None:
             matched_posted.add(hit)
             result.caught.append(expected)
+            if posted[hit].proof:
+                result.proven.append(expected)
             continue
 
         gone = first(dropped, matched_dropped, lambda v: expected.matches(v.finding))
@@ -459,7 +478,8 @@ def render_report(report: EvalReport) -> str:
     for case in report.cases:
         lines.append(f"  {case.name}")
         for expected in case.caught:
-            lines.append(f"    caught   {expected.file}:{expected.line}")
+            note = "  (proven by parsing, not proposed by the model)" if expected in case.proven else ""
+            lines.append(f"    caught   {expected.file}:{expected.line}{note}")
         for expected, stage, said in case.gated:
             lines.append(f"    gated    {expected.file}:{expected.line}  ({stage})")
             if said:
@@ -512,6 +532,11 @@ def render_report(report: EvalReport) -> str:
         f"catch rate {report.catch_rate:.0%}  "
         f"({report.caught_total} caught, {report.gated_total} gated, {report.missed_total} missed)"
     )
+    if report.proven_total:
+        lines.append(
+            f"{report.proven_total} of the {report.caught_total} caught were proven by parsing "
+            "and say nothing about the model (--no-proofs measures it alone)"
+        )
     lines.append(
         f"false positives {report.false_positive_total} "
         f"({report.false_positive_rate:.2f} per expected finding)"
@@ -531,6 +556,7 @@ def report_to_dict(report: EvalReport) -> dict:
             {
                 "name": case.name,
                 "caught": [f"{e.file}:{e.line}" for e in case.caught],
+                "proven": [f"{e.file}:{e.line}" for e in case.proven],
                 "gated": [
                     {"finding": f"{e.file}:{e.line}", "stage": stage, "verifier": said}
                     for e, stage, said in case.gated
@@ -561,6 +587,7 @@ def report_to_dict(report: EvalReport) -> dict:
         "expected_total": report.expected_total,
         "caught_total": report.caught_total,
         "gated_total": report.gated_total,
+        "proven_total": report.proven_total,
         "missed_total": report.missed_total,
         "false_positive_total": report.false_positive_total,
         "catch_rate": round(report.catch_rate, 4),

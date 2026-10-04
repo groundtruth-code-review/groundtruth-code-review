@@ -1,0 +1,33 @@
+{
+  "name": "proof_break_found_without_the_model",
+  "track": "pipeline",
+  "about": "The model proposes nothing at all. The signature gained a required argument and checkout.py still passes one; the parser proves the break from the two syntax trees and the gate posts it with no skeptic call. This is the case a model cannot be blamed or credited for.",
+  "diff": "diff --git a/invoice.py b/invoice.py\n--- a/invoice.py\n+++ b/invoice.py\n@@ -1,2 +1,2 @@\n-def calculate_discount(price):\n-    return price * 0.9\n+def calculate_discount(price, promos):\n+    return price * (1 - sum(promos))\n",
+  "head_sources": {
+    "invoice.py": "def calculate_discount(price, promos):\n    return price * (1 - sum(promos))\n",
+    "checkout.py": "from invoice import calculate_discount\n\n\ndef checkout(price):\n    return calculate_discount(price)\n"
+  },
+  "base_sources": {
+    "invoice.py": "def calculate_discount(price):\n    return price * 0.9\n"
+  },
+  "expected_findings": [
+    {
+      "file": "invoice.py",
+      "line": 1,
+      "title_contains": [
+        "checkout",
+        "promos"
+      ]
+    }
+  ],
+  "recorded": {
+    "review": {
+      "findings": []
+    },
+    "skeptic": {
+      "is_real": false,
+      "is_actionable": false,
+      "confidence": 0.0
+    }
+  }
+}

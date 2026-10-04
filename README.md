@@ -84,9 +84,12 @@ have not run any of them against Groundtruth.
 - **They can keep digging.** Our caller lookup stops one hop out, so a bug two
   calls away is out of reach, as is any file type outside the 18 we search.
   The other three give an agent tools to grep and read further.
-- **Their checks run; ours read.** CodeRabbit executes commands and linters
-  and attaches what came back. Our gate never runs anything: a second model
-  judges the claim by reading the code.
+- **Their checks run; ours mostly read.** CodeRabbit executes commands and
+  linters and attaches what came back. We run nothing, since a pull request's
+  own tooling would run inside your CI. We do one check by parsing: when a
+  Python signature changes, each caller is tested against the new parameters
+  and a call that can't bind is reported with proof. Every other claim is
+  judged by a second model reading the code.
 - **They remember what your team decided.** Qodo keeps an index of past review
   decisions and conventions. Our only memory is which findings were already
   posted on this pull request, and nothing reads a dismissal back yet
@@ -300,6 +303,7 @@ max_inline_comments: 10
 context_token_budget: 25000        # context assembled per review
 max_diff_tokens_per_call: 6000     # a bigger file is reviewed in hunk groups
 summary: true                      # one cheap call to group the findings
+proofs: true                       # post breaks the parser can prove, with no model call
 dimensions: [correctness, security, conventions]
 
 # Optional: different models for the checking stages. Unset means every stage

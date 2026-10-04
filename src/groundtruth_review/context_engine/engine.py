@@ -40,15 +40,54 @@ class ContextBlock:
         return _estimate_tokens(self.text)
 
 
+@dataclass(frozen=True)
+class SignatureChange:
+    """A function whose header differs between the base and the head, with
+    where it sits in the head file. Recorded here, where the comparison is
+    already made, so nothing downstream has to redo it.
+    """
+
+    path: str
+    name: str
+    start_line: int
+    end_line: int
+
+
 @dataclass
 class ReviewContext:
     blocks: list[ContextBlock] = field(default_factory=list)
     estimated_tokens: int = 0
     cut: list[str] = field(default_factory=list)  # labels dropped/degraded, for transparency
+    signature_changes: list[SignatureChange] = field(default_factory=list)
 
 
 def _normalized_header(header: str) -> str:
     return " ".join(header.split())
+
+
+def _signature(chunk) -> str:
+    """What a function's signature is, for deciding whether it changed.
+
+    The header is only the first line, and for a signature wrapped one
+    parameter per line (what Black produces for anything long) the first
+    line is `def f(` before and after a parameter is added -- so comparing
+    headers called that unchanged. This reads through the line where the
+    parameter list closes. A signature that fits on one line comes out
+    exactly as the header did, return annotation included.
+    """
+    text = chunk.text
+    open_at = text.find("(")
+    if open_at != -1:
+        depth = 0
+        for i in range(open_at, len(text)):
+            if text[i] == "(":
+                depth += 1
+            elif text[i] == ")":
+                depth -= 1
+                if depth == 0:
+                    end = text.find("\n", i)
+                    return _normalized_header(text if end == -1 else text[:end])
+    return _normalized_header(chunk.header)  # no parameter list we can read: first line, as before
 
 
 def build_context(
@@ -73,6 +112,7 @@ def build_context(
     candidates: list[ContextBlock] = []
     seen_labels: set[str] = set()
     signature_changed_names: set[str] = set()
+    signature_changes: list[SignatureChange] = []
 
     # (path, start_line, end_line) of every chunk included as changed code, and
     # the caller blocks waiting to be filtered against it. Callers are held
@@ -92,11 +132,12 @@ def build_context(
 
         for chunk in changed_chunks:
             base_match = find_by_name(base_chunks, chunk.name) if base_chunks else None
-            changed_signature = bool(
-                base_match and _normalized_header(base_match.header) != _normalized_header(chunk.header)
-            )
+            changed_signature = bool(base_match and _signature(base_match) != _signature(chunk))
             if changed_signature:
                 signature_changed_names.add(chunk.name)
+                signature_changes.append(
+                    SignatureChange(path, chunk.name, chunk.start_line, chunk.end_line)
+                )
 
             sig_note = ": signature changed" if changed_signature else ""
             label = f"{path}#L{chunk.start_line}-{chunk.end_line} (changed{sig_note})"
@@ -160,7 +201,7 @@ def build_context(
     # that this code exists."
     candidates.sort(key=lambda b: (not b.must_include, b.tier))
 
-    ctx = ReviewContext()
+    ctx = ReviewContext(signature_changes=signature_changes)
     for block in candidates:
         if ctx.estimated_tokens + block.tokens <= budget_tokens or block.must_include:
             ctx.blocks.append(block)
