@@ -649,7 +649,7 @@ PAGES["faq"] = (
       <p>Honestly: alpha. The pipeline, the CLI, the eval harness and three platform adapters are implemented and covered by 290 tests that run offline against fake model clients, plus labeled cases replayed on every build. What that does <i>not</i> prove is behaviour against a live model on your codebase at scale &mdash; no test can. Start it on one repository, read what it posts, and tune <code>min_confidence</code> before you turn it on everywhere.</p>
 
       <h2>What is still missing?</h2>
-      <p>Publication to PyPI, so installing stops meaning a git URL; and a self-hosted server mode for Bitbucket Data Center, which is the one platform with no free per-pull-request CI container. The <a href="REPOURL#roadmap">roadmap</a> is kept current.</p>
+      <p>Publication to PyPI, so installing stops meaning a git URL; and a self-hosted server mode for Bitbucket Data Center, which is the one platform with no free per-pull-request CI container. The scoped design for the second is in <a href="REPOURL/blob/main/docs/server-mode-design.md">docs/server-mode-design.md</a>.</p>
 """,
 )
 

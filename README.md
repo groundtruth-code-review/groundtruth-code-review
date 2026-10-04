@@ -21,9 +21,10 @@ Data Center.
 > (290 tests, all green). An optional server mode — an ingest API and the
 > database behind it — is implemented too (7 more tests, against a real
 > Postgres); a webhook receiver for Bitbucket Data Center and anything that
-> reads that database back out are not. See [Roadmap](#roadmap). Nothing
-> here is published to PyPI yet — the install instructions below use a git
-> URL until it is.
+> reads that database back out are not; see
+> [docs/server-mode-design.md](docs/server-mode-design.md). Nothing here is
+> published to PyPI yet — the install instructions below use a git URL until
+> it is.
 
 ## How a review flows
 
@@ -327,26 +328,6 @@ Two rules are enforced, not just requested:
 Every setting, per-stage endpoints (NVIDIA's catalog, Azure, a LiteLLM proxy),
 verifying with a different provider, and sampling settings are in the
 **[configuration guide](https://groundtruth-code-review.github.io/groundtruth-code-review/guide/configuration.html)**.
-
-## Roadmap
-
-The pipeline, CLI, eval harness, GitHub / GitLab / Bitbucket Cloud adapters and
-container image described above are built. What is left:
-
-- [ ] publish to PyPI, so installing stops meaning a git URL
-- [ ] `adapters/bitbucket_dc` — the webhook receiver and queue that write to
-      the server's schema directly, for the one platform with no free
-      per-pull-request CI container, and the Helm chart that installs it. Not
-      started before the receiver exists: a chart with no workload to run
-      would be YAML pretending to be a deployment. Phase 2 of
-      [docs/server-mode-design.md](docs/server-mode-design.md); nothing reads
-      the schema back out yet either (no dashboard, no feedback loop: phase 3)
-- [x] `groundtruth_review.server` — an optional, self-hosted ingest API and
-      three-table Postgres schema (`pip install "groundtruth-review[server]"`;
-      `docker compose -f deploy/docker-compose.yml up` for local dev). Each CI
-      adapter POSTs its JSON output here if `GROUNDTRUTH_INGEST_URL` is set;
-      unset by default, and nothing else changes either way. Phase 1 of the
-      same design doc
 
 ## Measuring it
 

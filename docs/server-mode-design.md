@@ -1,6 +1,6 @@
 # Server mode: a scoped design, phase 1 built
 
-This describes a piece of the roadmap (`adapters/bitbucket_dc` + `deploy/`).
+This describes the server-mode piece of the project (`adapters/bitbucket_dc` + `deploy/`).
 Phase 1 below — ingest only — is built, tested against a real Postgres, and
 covered by CI. Phases 2 and 3 are not: they remain what would need to be
 true before they exist, not a promise of order. Treat everything past

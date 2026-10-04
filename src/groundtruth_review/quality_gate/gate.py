@@ -15,7 +15,7 @@ Order matters and is deliberate:
      finding, it just decides posting order and where the cutoff falls.
 
 Every dropped finding is recorded with which stage killed it and why — that
-record is what the eval harness (next up on the roadmap) grades against, and
+record is what the eval harness grades against, and
 it's what turns "the bot seems okay" into a measurable, improvable number.
 """
 

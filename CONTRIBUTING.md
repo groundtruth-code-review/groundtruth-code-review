@@ -61,10 +61,10 @@ that already happened once:
 
 ## What's most useful to work on right now
 
-Check the [Roadmap](README.md#roadmap) in the README — anything unchecked is
-open. `adapters/bitbucket_dc` and the Helm chart that installs it are the
-remaining module, and the honest version of it needs real repositories to
-profile: the claim that module makes is a deployment sized from measurement,
+Two pieces are open: publishing to PyPI, and `adapters/bitbucket_dc` with the
+Helm chart that installs it (scoped in
+[docs/server-mode-design.md](docs/server-mode-design.md)). The honest version
+of the second needs real repositories to profile: the claim that module makes is a deployment sized from measurement,
 not a Helm chart full of guessed numbers.
 
 Adding a case to `cases/` is the smallest useful contribution, and often the
