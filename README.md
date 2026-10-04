@@ -27,12 +27,16 @@ Data Center.
 
 ## How a review flows
 
-Seven stages, each handing the next exactly one thing. The dotted lines are
-the only three model calls, and each is a round trip: stage 4 sends one file's
-diff with the assembled context and gets candidate findings back, stage 5
-sends a single finding with its evidence and gets a verdict, stage 6 sends the
-verified set and gets one grouped summary. Everything else — parsing,
-searching, quote matching, fingerprinting — is ordinary code.
+Seven stages, each handing the next exactly one thing. Only three call a
+model, and each is a round trip: stage 4 sends one file's diff with the
+assembled context and gets candidate findings back, stage 5 sends a single
+finding with its evidence and gets a verdict, stage 6 sends the verified set
+and gets one grouped summary. Everything else — parsing, searching, quote
+matching, fingerprinting — is ordinary code.
+
+![Animated diagram of the seven stages: packets travel between stages, arrows go out to a model and back at stages 4, 5 and 6, and findings that fail the gate are dropped at stage 5 with a reason.](docs/assets/review-flow.svg)
+
+The same flow as text, for anywhere the animation doesn't load:
 
 ```mermaid
 flowchart TD
@@ -51,8 +55,7 @@ flowchart TD
     E -.-> X["dropped<br/>no quote, off-diff line,<br/>duplicate, low confidence"]
 ```
 
-The same pipeline, with a worked example traced through every stage and the
-handoffs animated, is at
+The same pipeline, with a worked example traced through every stage, is at
 **[groundtruth-code-review.github.io/groundtruth-code-review](https://groundtruth-code-review.github.io/groundtruth-code-review/)**.
 
 Stage 3 is where the interesting work happens, and it calls no model at all:

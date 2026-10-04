@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-24 -18 1516 384" role="img" aria-label="Seven-stage pipeline: a trigger passes base and head commits to git collection, which passes a diff and file versions to context building, which passes labeled code blocks to the review pass, which passes candidate findings to the quality gate, which passes verified findings to the summarize step and on to the publisher. Three stages call a model as a round trip: stage 4 sends a file diff and context and receives candidate findings on a stronger tier, stage 5 sends a finding and its evidence and receives a verdict and confidence on a cheap tier, stage 6 sends the verified findings and receives one grouped summary on a cheap tier. The gate drops findings that lack a quote, sit outside the diff, duplicate an earlier one, or score too low.">
+<style>
+/* ---- diagram marks ---- */
+  .box { fill: #121a1b; stroke: #2b3a3b; stroke-width: 1.2; }
+  .box.live { animation: pulse 14s linear infinite; animation-delay: calc(var(--i) * 2s); }
+  .s-num { font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; font-size: 12px; fill: #5bd3c6; letter-spacing: .08em; }
+  .s-name { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 17px; font-weight: 600; fill: #e8efed; }
+  .s-tech { font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; font-size: 11.5px; fill: #91a3a4; }
+  .wire { stroke: #2b3a3b; stroke-width: 1.2; fill: none; }
+  .hand { font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; font-size: 12.5px; fill: #91a3a4; }
+  .aside-label { font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; font-size: 12.5px; fill: #91a3a4; }
+  .pill { fill: #16292a; stroke: #2b3a3b; stroke-width: 1.2; }
+  .pill-text { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 16px; font-weight: 600; fill: #e8efed; }
+  .drop { stroke: #e39a63; stroke-width: 1.2; fill: none; stroke-dasharray: 3 4; }
+  .drop-text { font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; font-size: 12.5px; fill: #e39a63; }
+  .packet { fill: #5bd3c6; animation: travel 14s linear infinite; animation-delay: calc(var(--i) * 2s); opacity: 0; }
+  .call { stroke: #5bd3c6; stroke-width: 1.4; fill: none; }
+  .call-label { font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; font-size: 11.5px; fill: #5bd3c6; }
+  .tag { fill: none; stroke: #91a3a4; stroke-width: 1; stroke-dasharray: 4 3; }
+  .tag-text { font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; font-size: 12px; fill: #91a3a4; letter-spacing: .02em; }
+  .packet.up { animation-name: call-out; }
+  .packet.down { animation-name: call-back; }
+
+  @keyframes call-out {
+    0%, 0.9% { opacity: 0; transform: translateY(0); }
+    1.7% { opacity: 1; }
+    4.3% { opacity: 1; }
+    5.14% { opacity: 0; transform: translateY(-52px); }
+    100% { opacity: 0; transform: translateY(-52px); }
+  }
+  @keyframes call-back {
+    0%, 5.14% { opacity: 0; transform: translateY(-52px); }
+    6% { opacity: 1; }
+    8% { opacity: 1; }
+    9.4% { opacity: 0; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(0); }
+  }
+  @keyframes travel {
+    0%, 8.571% { opacity: 0; transform: translateX(0); }
+    10% { opacity: 1; }
+    13% { opacity: 1; }
+    14.286% { opacity: 0; transform: translateX(68px); }
+    100% { opacity: 0; transform: translateX(68px); }
+  }
+  @keyframes pulse {
+    0%, 8.571% { stroke: #5bd3c6; stroke-width: 2; fill: #16292a; }
+    12%, 100% { stroke: #2b3a3b; stroke-width: 1.2; fill: #121a1b; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .packet { animation: none; opacity: 1; }
+    .box.live { animation: none; }
+  }
+
+  
+</style>
+<rect x="-24" y="-18" width="1516" height="384" rx="14" fill="#0e1516" stroke="#223031" stroke-width="1.5"/>
+        <defs>
+          <marker id="tip" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 1 L 9 5 L 0 9 z" fill="currentColor"></path>
+          </marker>
+        </defs>
+
+        <!-- the model and its tiers -->
+        <rect class="pill" x="668" y="14" width="564" height="38" rx="19"></rect>
+        <text class="pill-text" x="950" y="38" text-anchor="middle">Model via LiteLLM &#8212; your key</text>
+        <g>
+          <rect class="tag" x="656" y="58" width="156" height="20" rx="10"></rect>
+          <text class="tag-text" x="734" y="72" text-anchor="middle">stronger tier</text>
+          <rect class="tag" x="876" y="58" width="148" height="20" rx="10"></rect>
+          <text class="tag-text" x="950" y="72" text-anchor="middle">cheap tier</text>
+          <rect class="tag" x="1092" y="58" width="148" height="20" rx="10"></rect>
+          <text class="tag-text" x="1166" y="72" text-anchor="middle">cheap tier</text>
+        </g>
+        <g color="#5bd3c6">
+          <line class="call" x1="716" y1="132" x2="716" y2="84" marker-end="url(#tip)"></line>
+          <line class="call" x1="752" y1="84" x2="752" y2="132" marker-end="url(#tip)"></line>
+          <line class="call" x1="932" y1="132" x2="932" y2="84" marker-end="url(#tip)"></line>
+          <line class="call" x1="968" y1="84" x2="968" y2="132" marker-end="url(#tip)"></line>
+        </g>
+        <g color="#5bd3c6">
+          <line class="call" x1="1148" y1="132" x2="1148" y2="84" marker-end="url(#tip)"></line>
+          <line class="call" x1="1184" y1="84" x2="1184" y2="132" marker-end="url(#tip)"></line>
+        </g>
+        <g>
+          <text class="call-label" x="708" y="100" text-anchor="end">file diff +</text>
+          <text class="call-label" x="708" y="115" text-anchor="end">context &#8594;</text>
+          <text class="call-label" x="760" y="100">&#8592; candidate</text>
+          <text class="call-label" x="760" y="115">findings</text>
+          <text class="call-label" x="924" y="100" text-anchor="end">finding +</text>
+          <text class="call-label" x="924" y="115" text-anchor="end">evidence &#8594;</text>
+          <text class="call-label" x="976" y="100">&#8592; is it real?</text>
+          <text class="call-label" x="976" y="115">confidence</text>
+          <text class="call-label" x="1140" y="100" text-anchor="end">verified</text>
+          <text class="call-label" x="1140" y="115" text-anchor="end">findings &#8594;</text>
+          <text class="call-label" x="1192" y="100">&#8592; grouped</text>
+          <text class="call-label" x="1192" y="115">summary</text>
+        </g>
+        <g>
+          <circle class="packet up" style="--i:3" cx="716" cy="136" r="4.5"></circle>
+          <circle class="packet down" style="--i:3" cx="752" cy="136" r="4.5"></circle>
+          <circle class="packet up" style="--i:4" cx="932" cy="136" r="4.5"></circle>
+          <circle class="packet down" style="--i:4" cx="968" cy="136" r="4.5"></circle>
+          <circle class="packet up" style="--i:5" cx="1148" cy="136" r="4.5"></circle>
+          <circle class="packet down" style="--i:5" cx="1184" cy="136" r="4.5"></circle>
+        </g>
+
+        <!-- stage boxes -->
+        <g>
+          <rect class="box live" style="--i:0" x="20" y="136" width="132" height="76" rx="5"></rect>
+          <text class="s-num" x="36" y="160">01</text>
+          <text class="s-name" x="36" y="182">Trigger</text>
+          <text class="s-tech" x="36" y="200">GitHub Actions</text>
+
+          <rect class="box live" style="--i:1" x="236" y="136" width="132" height="76" rx="5"></rect>
+          <text class="s-num" x="252" y="160">02</text>
+          <text class="s-name" x="252" y="182">Collect</text>
+          <text class="s-tech" x="252" y="200">git</text>
+
+          <rect class="box live" style="--i:2" x="452" y="136" width="132" height="76" rx="5"></rect>
+          <text class="s-num" x="468" y="160">03</text>
+          <text class="s-name" x="468" y="182">Context</text>
+          <text class="s-tech" x="468" y="200">Tree-sitter &#183; rg</text>
+
+          <rect class="box live" style="--i:3" x="668" y="136" width="132" height="76" rx="5"></rect>
+          <text class="s-num" x="684" y="160">04</text>
+          <text class="s-name" x="684" y="182">Propose</text>
+          <text class="s-tech" x="684" y="200">1 call / file</text>
+
+          <rect class="box live" style="--i:4" x="884" y="136" width="132" height="76" rx="5"></rect>
+          <text class="s-num" x="900" y="160">05</text>
+          <text class="s-name" x="900" y="182">Verify</text>
+          <text class="s-tech" x="900" y="200">gate &#183; SHA-1</text>
+
+          <rect class="box live" style="--i:5" x="1100" y="136" width="132" height="76" rx="5"></rect>
+          <text class="s-num" x="1116" y="160">06</text>
+          <text class="s-name" x="1116" y="182">Summarize</text>
+          <text class="s-tech" x="1116" y="200">1 call / PR</text>
+
+          <rect class="box live" style="--i:6" x="1316" y="136" width="132" height="76" rx="5"></rect>
+          <text class="s-num" x="1332" y="160">07</text>
+          <text class="s-name" x="1332" y="182">Publish</text>
+          <text class="s-tech" x="1332" y="200">REST API</text>
+        </g>
+
+        <!-- connectors, payload labels, travelling packets -->
+        <g color="#2b3a3b">
+          <line class="wire" x1="152" y1="174" x2="234" y2="174" marker-end="url(#tip)"></line>
+          <line class="wire" x1="368" y1="174" x2="450" y2="174" marker-end="url(#tip)"></line>
+          <line class="wire" x1="584" y1="174" x2="666" y2="174" marker-end="url(#tip)"></line>
+          <line class="wire" x1="800" y1="174" x2="882" y2="174" marker-end="url(#tip)"></line>
+          <line class="wire" x1="1016" y1="174" x2="1098" y2="174" marker-end="url(#tip)"></line>
+          <line class="wire" x1="1232" y1="174" x2="1314" y2="174" marker-end="url(#tip)"></line>
+        </g>
+        <g text-anchor="middle">
+          <text class="hand" x="194" y="234">base +</text>
+          <text class="hand" x="194" y="251">head sha</text>
+          <text class="hand" x="410" y="234">diff +</text>
+          <text class="hand" x="410" y="251">file versions</text>
+          <text class="hand" x="626" y="234">labeled</text>
+          <text class="hand" x="626" y="251">code blocks</text>
+          <text class="hand" x="842" y="234">candidate</text>
+          <text class="hand" x="842" y="251">findings</text>
+          <text class="hand" x="1058" y="234">verified,</text>
+          <text class="hand" x="1058" y="251">ranked</text>
+          <text class="hand" x="1273" y="234">findings +</text>
+          <text class="hand" x="1273" y="251">one summary</text>
+        </g>
+        <g>
+          <circle class="packet" style="--i:0" cx="160" cy="174" r="5"></circle>
+          <circle class="packet" style="--i:1" cx="376" cy="174" r="5"></circle>
+          <circle class="packet" style="--i:2" cx="592" cy="174" r="5"></circle>
+          <circle class="packet" style="--i:3" cx="808" cy="174" r="5"></circle>
+          <circle class="packet" style="--i:4" cx="1024" cy="174" r="5"></circle>
+          <circle class="packet" style="--i:5" cx="1240" cy="174" r="5"></circle>
+        </g>
+
+        <!-- rejections out of the gate -->
+        <g color="#e39a63">
+          <path class="drop" d="M 950 212 L 950 288" marker-end="url(#tip)"></path>
+        </g>
+        <text class="drop-text" x="950" y="310" text-anchor="middle">dropped &#183; no quote &#183; duplicate &#183; low confidence</text>
+        <text class="drop-text" x="950" y="326" text-anchor="middle">each rejection keeps its reason</text>
+      </svg>
