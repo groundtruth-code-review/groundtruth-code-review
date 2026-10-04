@@ -76,7 +76,7 @@ have not run any of them against Groundtruth.
 
 | | What decides the code the model reads | What checks a claim before it posts |
 | --- | --- | --- |
-| **Groundtruth** | Code. Tree-sitter finds the changed function and a text search finds its callers and what the new code calls. The same diff gives the same context. | The quote must exist in the diff, on a changed line. A second model, optionally from another provider, can veto it. Every drop is recorded with a reason. |
+| **Groundtruth** | Code. Tree-sitter finds the changed function and a text search finds its callers and what the new code calls. The same diff gives the same context. | The quote must exist in the diff, on a changed line. A second model, optionally from another provider, can veto it, except for a break the parser proves, which skips it. Every drop is recorded with a reason. |
 | Open Code Review¹ | Rules pick the files, then an agent reads files and searches the codebase. | Separate modules for comment position and content. The README doesn't detail filtering. |
 | CodeRabbit | A map of definitions and references plus an embedding index, then shell commands from the review agent. | Runs shell and Python checks in an isolated environment to confirm an assumption. |
 | Qodo | The agent fetches context itself with git diff, grep and file reads. Its codebase index was removed in 2.4. | Not described in the sources we read. |

@@ -467,7 +467,7 @@ Reviewed with `anthropic/claude-sonnet-5` &middot; estimated $0.0032.&lt;/sub&gt
     <div class="check-card ours">
       <h4>Groundtruth</h4>
       <p class="how">Code checks, then a second model with a veto</p>
-      <p>The finding must quote code that exists in the diff, on a changed line, and not repeat an earlier comment. A second model then judges it. Its confidence is multiplied with the first model's, and &ldquo;not real&rdquo; or &ldquo;not worth fixing&rdquo; zeroes it. That second model can come from a different provider, and every drop is recorded with its stage and reason.</p>
+      <p>The finding must quote code that exists in the diff, on a changed line, and not repeat an earlier comment. A second model then judges it. Its confidence is multiplied with the first model's, and &ldquo;not real&rdquo; or &ldquo;not worth fixing&rdquo; zeroes it. That second model can come from a different provider, and every drop is recorded with its stage and reason. The exception is a break the parser can prove from the syntax trees, which has nothing left to ask.</p>
     </div>
     <div class="check-card">
       <h4>CodeRabbit</h4>
