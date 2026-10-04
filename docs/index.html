@@ -445,7 +445,7 @@ Reviewed with `anthropic/claude-sonnet-5` &middot; estimated $0.0032.&lt;/sub&gt
     </div>
   </div>
 
-  <div class="feature-grid">
+  <div class="feature-grid narrow">
     <div class="feature-card">
       <div class="f-num">Toward the left</div>
       <h4>Reproducible and bounded</h4>
@@ -487,11 +487,27 @@ Reviewed with `anthropic/claude-sonnet-5` &middot; estimated $0.0032.&lt;/sub&gt
 
   <div class="prose">
     <h3>Where they are ahead of us</h3>
-    <div class="callout">
-      <p style="margin:0 0 10px"><b>They can follow a thread.</b> Agentic context-gathering reaches code that our one-hop caller lookup does not.</p>
-      <p style="margin:0 0 10px"><b>CodeRabbit executes checks.</b> It runs linters and security analyzers alongside the model and proves claims by running commands. We only verify that the quoted code exists, then ask a second model.</p>
-      <p style="margin:0"><b>Qodo carries team context between reviews.</b> Groundtruth remembers one thing, which findings it already posted on this pull request. Nothing reads a thumbs-down or a resolved thread back into the next review yet.</p>
+  </div>
+
+  <div class="feature-grid narrow">
+    <div class="feature-card">
+      <div class="f-num">Following a trail</div>
+      <h4>They can keep digging</h4>
+      <p>Our caller lookup stops one hop out: it finds who calls the changed function, not who calls those callers. A bug that only shows up two calls away is out of reach, and so is any language outside the 18 file types we search. Qodo, CodeRabbit and Open Code Review all give an agent tools to grep and read further when it needs to.</p>
     </div>
+    <div class="feature-card">
+      <div class="f-num">Running checks</div>
+      <h4>Their checks run; ours read</h4>
+      <p>CodeRabbit runs linters and security analyzers beside the model, and confirms a suspicion by executing a command and attaching what came back. Our gate never runs anything. It confirms the quote is in the diff, the line is one you changed, and a second model agrees, so a claim like &ldquo;this call can return None&rdquo; is judged by a model reading the code, not confirmed by running it.</p>
+    </div>
+    <div class="feature-card">
+      <div class="f-num">Learning from your team</div>
+      <h4>They remember what your team decided</h4>
+      <p>Qodo keeps an index of past review decisions and team conventions to draw on. Groundtruth&rsquo;s only memory is which findings it already posted on this pull request. If your team keeps dismissing the same kind of comment, nothing reads that back yet, and you turn <code>min_confidence</code> up by hand. Reading it back is <a href="https://github.com/groundtruth-code-review/groundtruth-code-review/blob/main/docs/server-mode-design.md" style="color:var(--accent)">scoped in the server-mode design</a>, not built.</p>
+    </div>
+  </div>
+
+  <div class="prose">
     <p class="sources">Read in October 2026 from each project's own pages: <a href="https://www.qodo.ai/blog/we-built-a-state-of-the-art-rag-system-for-code-review-in-qodo-2-4-we-took-most-of-it-out/">Qodo, on removing most of its RAG system in 2.4</a>; <a href="https://www.coderabbit.ai/blog/how-coderabbit-delivers-accurate-ai-code-reviews-on-massive-codebases">CodeRabbit, on accurate reviews on massive codebases</a>; <a href="https://github.com/alibaba/open-code-review">Open Code Review README</a>.<br><sup>1</sup> Several GitHub projects share this name; this is Alibaba's. Products change, so if something here is out of date, <a href="https://github.com/groundtruth-code-review/groundtruth-code-review/issues">please open an issue</a>.</p>
   </div>
 

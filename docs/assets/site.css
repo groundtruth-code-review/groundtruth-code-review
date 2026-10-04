@@ -799,5 +799,6 @@
   .check-card.unknown .how { color: var(--muted); }
   .check-card p:not(.how) { margin: 0; font-size: 14.5px; line-height: 1.55; color: var(--soft); }
 
+  .feature-grid.narrow { max-width: 940px; }
   .sources { max-width: var(--measure); margin: 18px 0 0; font-size: 13.5px; line-height: 1.6; color: var(--muted); }
   .sources a { color: var(--accent); }

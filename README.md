@@ -65,6 +65,40 @@ decisions follow from that:
    skeptical right one — and clear a fingerprint check so re-runs never
    duplicate a comment or falsely mark a live bug resolved.
 
+## How the design differs from other tools
+
+Compared on two questions, from how Qodo, CodeRabbit and Open Code Review
+describe themselves. This maps design choices; it is not a benchmark, and we
+have not run any of them against Groundtruth.
+
+| | What decides the code the model reads | What checks a claim before it posts |
+| --- | --- | --- |
+| **Groundtruth** | Code. Tree-sitter finds the changed function and a text search finds its callers. The same diff gives the same context. | The quote must exist in the diff, on a changed line. A second model, optionally from another provider, can veto it. Every drop is recorded with a reason. |
+| Open Code Review¹ | Rules pick the files, then an agent reads files and searches the codebase. | Separate modules for comment position and content. The README doesn't detail filtering. |
+| CodeRabbit | A map of definitions and references plus an embedding index, then shell commands from the review agent. | Runs shell and Python checks in an isolated environment to confirm an assumption. |
+| Qodo | The agent fetches context itself with git diff, grep and file reads. Its codebase index was removed in 2.4. | Not described in the sources we read. |
+
+**Where they are ahead of us:**
+
+- **They can keep digging.** Our caller lookup stops one hop out, so a bug two
+  calls away is out of reach, as is any file type outside the 18 we search.
+  The other three give an agent tools to grep and read further.
+- **Their checks run; ours read.** CodeRabbit executes commands and linters
+  and attaches what came back. Our gate never runs anything: a second model
+  judges the claim by reading the code.
+- **They remember what your team decided.** Qodo keeps an index of past review
+  decisions and conventions. Our only memory is which findings were already
+  posted on this pull request, and nothing reads a dismissal back yet
+  ([scoped, not built](docs/server-mode-design.md)).
+
+The full version, with the placement graphic, is
+**[on the site](https://groundtruth-code-review.github.io/groundtruth-code-review/#compared)**.
+Read in October 2026 from [Qodo](https://www.qodo.ai/blog/we-built-a-state-of-the-art-rag-system-for-code-review-in-qodo-2-4-we-took-most-of-it-out/),
+[CodeRabbit](https://www.coderabbit.ai/blog/how-coderabbit-delivers-accurate-ai-code-reviews-on-massive-codebases)
+and the [Open Code Review README](https://github.com/alibaba/open-code-review).
+¹ Several GitHub projects share this name; this is Alibaba's. Products change,
+so if something here is out of date, [open an issue](https://github.com/groundtruth-code-review/groundtruth-code-review/issues).
+
 ## How it's put together
 
 ```
