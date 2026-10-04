@@ -34,26 +34,7 @@ finding with its evidence and gets a verdict, stage 6 sends the verified set
 and gets one grouped summary. Everything else — parsing, searching, quote
 matching, fingerprinting — is ordinary code.
 
-![Animated diagram of the seven stages: packets travel between stages, arrows go out to a model and back at stages 4, 5 and 6, and findings that fail the gate are dropped at stage 5 with a reason.](docs/assets/review-flow.svg)
-
-The same flow as text, for anywhere the animation doesn't load:
-
-```mermaid
-flowchart TD
-    A["1 Trigger<br/>CI on a pull request"] --> B["2 Collect<br/>diff + file versions"]
-    B --> C["3 Build context<br/>AST parse + caller search"]
-    C --> D["4 Propose<br/>one call per changed file"]
-    D --> E["5 Verify<br/>five checks"]
-    E --> F["6 Summarize<br/>one call per pull request"]
-    F --> G["7 Publish<br/>PR comments"]
-
-    M(["Model via LiteLLM<br/>your key, any provider"])
-    D <-.-> M
-    E <-.-> M
-    F <-.-> M
-
-    E -.-> X["dropped<br/>no quote, off-diff line,<br/>duplicate, low confidence"]
-```
+![Animated diagram of the seven stages: Trigger, Collect, Build context, Propose, Verify, Summarize, Publish. Packets travel between stages, arrows go out to a model and back at stages 4, 5 and 6, and findings that fail the gate are dropped at stage 5 with a reason.](docs/assets/review-flow.svg)
 
 The same pipeline, with a worked example traced through every stage, is at
 **[groundtruth-code-review.github.io/groundtruth-code-review](https://groundtruth-code-review.github.io/groundtruth-code-review/)**.
