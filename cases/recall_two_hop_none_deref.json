@@ -1,0 +1,49 @@
+{
+  "name": "recall_two_hop_none_deref",
+  "track": "recall",
+  "about": "find_user now returns None for a missing id instead of raising. Its direct caller only passes the value along, so the break is not there: it is in greet(), two calls away, which reads .name on the result. Findable only when the context follows callers past the first step.",
+  "diff": "diff --git a/users.py b/users.py\n--- a/users.py\n+++ b/users.py\n@@ -2,4 +2,4 @@\n \n \n def find_user(uid):\n-    return USERS[uid]\n+    return USERS.get(uid)\n",
+  "head_sources": {
+    "users.py": "USERS = {1: \"ada\"}\n\n\ndef find_user(uid):\n    return USERS.get(uid)\n",
+    "profile.py": "from users import find_user\n\n\ndef load_profile(uid):\n    return find_user(uid)\n",
+    "greeting.py": "from profile import load_profile\n\n\ndef greet(uid):\n    return \"Hi \" + load_profile(uid).name\n"
+  },
+  "base_sources": {
+    "users.py": "USERS = {1: \"ada\"}\n\n\ndef find_user(uid):\n    return USERS[uid]\n"
+  },
+  "expected_findings": [
+    {
+      "file": "users.py",
+      "line": 5,
+      "title_contains": [
+        "none",
+        "greet",
+        "name",
+        "attribute",
+        "missing",
+        "dereference"
+      ]
+    }
+  ],
+  "recorded": {
+    "review": {
+      "findings": [
+        {
+          "file": "users.py",
+          "line": 5,
+          "category": "correctness",
+          "severity": "high",
+          "confidence": 0.85,
+          "title": "find_user now returns None for a missing id, and greet() two calls away reads .name on it",
+          "quoted_code": "    return USERS.get(uid)"
+        }
+      ]
+    },
+    "skeptic": {
+      "is_real": true,
+      "is_actionable": true,
+      "confidence": 0.9,
+      "reason": "confirmed by the evidence"
+    }
+  }
+}

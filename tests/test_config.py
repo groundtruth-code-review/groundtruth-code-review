@@ -359,3 +359,28 @@ def test_a_quoted_false_is_refused_rather_than_read_as_true(tmp_path):
     path.write_text('proofs: "false"\n')
     with pytest.raises(ConfigError, match="proofs must be true or false"):
         load_config(path)
+
+
+def test_caller_depth_and_callees_have_defaults_that_match_the_engines():
+    import inspect
+
+    from groundtruth_review.context_engine import build_context
+
+    defaults = inspect.signature(build_context).parameters
+    assert Config().caller_depth == defaults["caller_depth"].default
+    assert Config().include_callees == defaults["include_callees"].default
+
+
+def test_caller_depth_and_callees_can_be_set_in_the_file(tmp_path):
+    path = tmp_path / ".groundtruth.yml"
+    path.write_text("caller_depth: 1\ninclude_callees: false\n")
+    config = load_config(path)
+    assert config.caller_depth == 1 and config.include_callees is False
+
+
+@pytest.mark.parametrize("value", ["0", "4", "2.5", "true", '"2"'])
+def test_a_caller_depth_outside_one_to_three_or_not_a_number_is_refused(tmp_path, value):
+    path = tmp_path / ".groundtruth.yml"
+    path.write_text(f"caller_depth: {value}\n")
+    with pytest.raises(ConfigError, match="caller_depth must be a whole number from 1 to 3"):
+        load_config(path)

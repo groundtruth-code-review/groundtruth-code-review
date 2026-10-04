@@ -219,3 +219,168 @@ def test_a_change_to_the_body_of_a_wrapped_signature_function_does_not_count(tmp
     base = "def f(\n    a,\n    b,\n):\n    return a\n"
     head = "def f(\n    a,\n    b,\n):\n    return b\n"
     assert _signature_changes(tmp_path, base, head) == []
+
+
+# ------------------------------------------------- callers further out, and callees
+
+import difflib  # noqa: E402
+
+from groundtruth_review.context_engine import engine as engine_module  # noqa: E402
+from groundtruth_review.context_engine.engine import _callee_names  # noqa: E402
+
+
+def _ctx_for(tmp_path, changed, base, head, budget=25_000, **options):
+    """Context for a one-file change; every other keyword is a file in the repo."""
+    files = options.pop("files", {})
+    (tmp_path / changed).write_text(head)
+    for name, text in files.items():
+        (tmp_path / name).write_text(text)
+    body = "".join(
+        difflib.unified_diff(
+            base.splitlines(keepends=True), head.splitlines(keepends=True), f"a/{changed}", f"b/{changed}"
+        )
+    )
+    diffmap = parse_diff(f"diff --git a/{changed} b/{changed}\n{body}")
+    return build_context(
+        tmp_path, diffmap, {changed: head}, {changed: base}, budget_tokens=budget, **options
+    )
+
+
+def _labels(ctx):
+    return [b.label for b in ctx.blocks]
+
+
+LEAF_BASE = "def calculate_discount(price):\n    return price * 0.9\n"
+LEAF_HEAD = "def calculate_discount(price):\n    return price * 0.8\n"
+CHAIN = {
+    "checkout.py": (
+        "from leaf import calculate_discount\n\n\ndef checkout(p):\n    return calculate_discount(p)\n"
+    ),
+    "order.py": "from checkout import checkout\n\n\ndef place_order():\n    return checkout(5)\n",
+}
+
+
+def test_callers_of_callers_are_included_and_say_how_far_out_they_are(tmp_path):
+    ctx = _ctx_for(tmp_path, "leaf.py", LEAF_BASE, LEAF_HEAD, files=CHAIN)
+    (far,) = [b for b in ctx.blocks if "2 hops" in b.label]
+    assert "order.py" in far.label and "caller of checkout, 2 hops from calculate_discount" in far.label
+    assert far.tier == 3 and far.must_include is False
+
+
+def test_depth_one_stops_at_the_direct_callers(tmp_path):
+    ctx = _ctx_for(tmp_path, "leaf.py", LEAF_BASE, LEAF_HEAD, files=CHAIN, caller_depth=1)
+    assert not any("hops" in label for label in _labels(ctx))
+    assert any("caller of calculate_discount" in label for label in _labels(ctx))
+
+
+def test_two_functions_calling_each_other_do_not_loop_or_repeat(tmp_path):
+    base = "def ping(n):\n    return pong(n)\n\n\ndef pong(n):\n    return ping(n)\n"
+    head = base.replace("return pong(n)", "return pong(n - 1)")
+    ctx = _ctx_for(tmp_path, "pp.py", base, head, caller_depth=3)
+    spans = [b.label.split(" ")[0] for b in ctx.blocks]
+    assert len(spans) == len(set(spans))  # no function sent twice
+
+
+def test_a_caller_two_steps_out_that_is_also_a_direct_caller_is_sent_once(tmp_path):
+    both = {
+        "checkout.py": CHAIN["checkout.py"],
+        "order.py": "from checkout import checkout\nfrom leaf import calculate_discount\n\n\n"
+                    "def place_order():\n    calculate_discount(1)\n    return checkout(5)\n",
+    }
+    ctx = _ctx_for(tmp_path, "leaf.py", LEAF_BASE, LEAF_HEAD, files=both)
+    order_blocks = [b for b in ctx.blocks if b.label.startswith("order.py")]
+    assert len(order_blocks) == 1 and order_blocks[0].tier == 1  # kept as the nearer, higher-priority one
+
+
+def test_searches_past_the_first_step_are_capped(tmp_path, monkeypatch):
+    monkeypatch.setattr(engine_module, "_MAX_INDIRECT_SEARCHES", 0)
+    ctx = _ctx_for(tmp_path, "leaf.py", LEAF_BASE, LEAF_HEAD, files=CHAIN)
+    assert not any("hops" in label for label in _labels(ctx))
+
+
+def test_when_only_the_nearer_blocks_fit_the_far_caller_is_what_gets_cut(tmp_path):
+    everything = _ctx_for(tmp_path, "leaf.py", LEAF_BASE, LEAF_HEAD, files=CHAIN)
+    near = sum(b.tokens for b in everything.blocks if b.tier <= 1)
+
+    ctx = _ctx_for(tmp_path, "leaf.py", LEAF_BASE, LEAF_HEAD, files=CHAIN, budget=near)
+    assert any(label.startswith("checkout.py") for label in _labels(ctx))
+    assert not any("checkout.py" in cut for cut in ctx.cut)  # the nearer caller is intact
+    assert any("order.py" in cut for cut in ctx.cut)  # the one two steps out is not
+
+
+CALLEE_FILES = {"rates.py": "def parse_rate(text):\n    return float(text) if text else None\n"}
+CALLEE_BASE = "def apply(price, row):\n    return price\n"
+CALLEE_HEAD = "def apply(price, row):\n    rate = parse_rate(row['rate'])\n    return price * rate\n"
+
+
+def test_a_function_the_new_code_calls_is_included_so_its_behaviour_is_visible(tmp_path):
+    ctx = _ctx_for(tmp_path, "pricing.py", CALLEE_BASE, CALLEE_HEAD, files=CALLEE_FILES)
+    (callee,) = [b for b in ctx.blocks if "callee of apply" in b.label]
+    assert "rates.py" in callee.label and "return float(text) if text else None" in callee.text
+    assert callee.tier == 2 and callee.must_include is False
+
+
+def test_a_call_that_was_already_there_is_not_looked_up(tmp_path):
+    base = "def apply(price, row):\n    rate = parse_rate(row['rate'])\n    return price * rate\n"
+    head = base.replace("return price * rate", "return price * rate * 2")
+    ctx = _ctx_for(tmp_path, "pricing.py", base, head, files=CALLEE_FILES)
+    assert not any("callee of" in label for label in _labels(ctx))
+
+
+def test_two_definitions_of_the_called_name_means_no_callee_block(tmp_path):
+    twice = {**CALLEE_FILES, "old_rates.py": "def parse_rate(a, b):\n    return a\n"}
+    ctx = _ctx_for(tmp_path, "pricing.py", CALLEE_BASE, CALLEE_HEAD, files=twice)
+    assert not any("callee of" in label for label in _labels(ctx))
+
+
+def test_callees_can_be_turned_off(tmp_path):
+    ctx = _ctx_for(
+        tmp_path, "pricing.py", CALLEE_BASE, CALLEE_HEAD, files=CALLEE_FILES, include_callees=False
+    )
+    assert not any("callee of" in label for label in _labels(ctx))
+
+
+def test_a_callee_that_is_itself_changed_in_the_pull_request_is_sent_once(tmp_path):
+    head = "def apply(price, row):\n    rate = helper(row)\n    return price * rate\n\n\n" \
+           "def helper(row):\n    return 2\n"
+    base = "def apply(price, row):\n    return price\n\n\ndef helper(row):\n    return 1\n"
+    ctx = _ctx_for(tmp_path, "pricing.py", base, head)
+    helper_blocks = [b for b in ctx.blocks if "#L6-7" in b.label or "helper" in b.text]
+    assert len([b for b in helper_blocks if b.text.startswith("def helper")]) == 1
+
+
+def test_callee_names_come_only_from_calls_in_the_code_that_matter():
+    lines = [
+        "# parse_rate(this) is a comment",
+        "    rate = parse_rate(row)",
+        "    total = obj.compute(rate)",          # a method on something else: not looked up
+        "    return self.finish(total)",           # a call into this class: looked up
+        "    if len(rows): pass",                  # keyword and builtin
+        "def inner(x):",                           # a definition, not a call
+        "    go(1)",                               # too short to be a useful name
+        "    apply(1)",                            # the function's own name
+    ]
+    assert _callee_names(lines, own_name="apply") == ["parse_rate", "finish"]
+
+
+def test_definition_searches_are_capped_per_review(tmp_path, monkeypatch):
+    monkeypatch.setattr(engine_module, "_MAX_DEFINITION_SEARCHES", 0)
+    ctx = _ctx_for(tmp_path, "pricing.py", CALLEE_BASE, CALLEE_HEAD, files=CALLEE_FILES)
+    assert not any("callee of" in label for label in _labels(ctx))
+
+
+def test_a_name_is_only_searched_for_once_per_review(tmp_path, monkeypatch):
+    searched = []
+    real = engine_module.find_definitions
+
+    def counting(root, name):
+        searched.append(name)
+        return real(root, name)
+
+    monkeypatch.setattr(engine_module, "find_definitions", counting)
+    base = "def one(row):\n    return row\n\n\ndef two(row):\n    return row\n"
+    head = (
+        "def one(row):\n    return parse_rate(row)\n\n\ndef two(row):\n    return parse_rate(row)\n"
+    )
+    _ctx_for(tmp_path, "pricing.py", base, head, files=CALLEE_FILES)
+    assert searched.count("parse_rate") == 1

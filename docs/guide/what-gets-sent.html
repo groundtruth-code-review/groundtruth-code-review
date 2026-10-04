@@ -53,7 +53,7 @@
           <tbody>
             <tr>
               <td>Stage 4 &mdash; propose</td>
-              <td>One changed file's diff, plus the assembled context bundle: the enclosing functions of changed lines, and the callers of any changed function.</td>
+              <td>One changed file's diff, plus the assembled context bundle: the enclosing functions of changed lines, the callers of any changed function and, by default, their callers, and the definitions of functions the changed lines call.</td>
               <td>One per changed file</td>
             </tr>
             <tr>
@@ -73,7 +73,7 @@
 
       <h2 id="what-never-leaves">What never leaves<a class="h-anchor" href="#what-never-leaves" aria-label="Link to this section">#</a></h2>
       <ul>
-        <li><b>Files outside the diff and outside the context bundle.</b> The rest of the repository is never read into a prompt. A file is only included if it was changed, or if it contains a caller of a changed function.</li>
+        <li><b>Files outside the diff and outside the context bundle.</b> The rest of the repository is never read into a prompt. A file is only included if it was changed, if it contains a caller of a changed function or a caller of that caller, or if it defines a function the changed lines call. <code>caller_depth: 1</code> and <code>include_callees: false</code> narrow that to direct callers, and <code>--dry-run</code> lists exactly what would be sent.</li>
         <li><b>Your key, anywhere but the provider.</b> It is read from the environment and used to authenticate the call to the provider you chose. It is never written to a file, never logged, and the config loader refuses to start if it finds something key-shaped in <code>.groundtruth.yml</code>.</li>
         <li><b>To a server the reviewed code chooses.</b> The endpoint cannot be set from <code>.groundtruth.yml</code>, because that file can be edited by the pull request under review. Only the environment and the command line &mdash; the place your key lives &mdash; can say where requests go.</li>
         <li><b>Telemetry.</b> There is none. There is no service operated by this project for anything to be sent to &mdash; no accounts, no hosted component, no phone-home.</li>

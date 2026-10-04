@@ -456,3 +456,28 @@ def test_every_dropped_finding_is_reported_with_its_stage_and_reason():
     finding, stage, reason, said = result.other_drops[0]
     assert stage == "hallucination"
     assert "not found" in reason
+
+
+def test_the_context_cases_really_depend_on_the_context_they_were_written_for(tmp_path):
+    """A recall case is only worth its place if the bug is invisible without
+    the new context. Build each one's context both ways and check."""
+    from groundtruth_review.context_engine import build_context, parse_diff
+
+    wanted = {
+        "recall_callee_returns_none": "callee of apply_rate",
+        "recall_two_hop_none_deref": "2 hops from find_user",
+    }
+    for name, label in wanted.items():
+        (case,) = [c for c in load_cases("cases") if c.name == name]
+        root = tmp_path / name
+        root.mkdir()
+        for rel, text in case.head_sources.items():
+            (root / rel).write_text(text)
+        diffmap = parse_diff(case.diff)
+
+        def labels(**options):
+            ctx = build_context(root, diffmap, case.head_sources, case.base_sources, **options)
+            return [b.label for b in ctx.blocks]
+
+        assert any(label in text for text in labels()), name
+        assert not any(label in text for text in labels(caller_depth=1, include_callees=False)), name

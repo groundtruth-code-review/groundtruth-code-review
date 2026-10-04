@@ -224,6 +224,7 @@
       <li><b>Tree-sitter</b> parses each changed file into an AST, so a changed line becomes the whole function that contains it.</li>
       <li><b>ripgrep</b> searches the repository for callers of each changed function, with a plain Python walk as a fallback when ripgrep is missing.</li>
       <li>If a function's signature changed, its callers become must-include and can never be dropped.</li>
+      <li>Past that, callers of those callers are added as optional context, along with the definition of any function the changed lines start calling. Both are capped, and they are the first things dropped when the budget is tight.</li>
       <li>Everything is packed into a token budget. Optional blocks shrink to their signature line before being dropped, and every cut is reported.</li>
     </ul>
     <p class="why"><b>Why an AST instead of a vector database:</b> parsing is exact and repeatable. Similarity search returns code that merely looks related, and a wrong snippet produces a confident, wrong finding. This way, context is always real code that provably surrounds the change.</p>
@@ -423,7 +424,7 @@ Reviewed with `anthropic/claude-sonnet-5` &middot; estimated $0.0032.&lt;/sub&gt
     <div class="lane ours">
       <div class="lane-name">Groundtruth</div>
       <div class="lane-track"><span class="lane-dot" style="left:4%"></span></div>
-      <p class="lane-desc">Code decides. Tree-sitter finds the changed function and a text search finds its callers; a changed signature pulls its callers in. The same diff gives the same context, and the cost is known before any model call.</p>
+      <p class="lane-desc">Code decides. Tree-sitter finds the changed function and a text search finds its callers and what the new code calls; a changed signature pulls its callers in. The same diff gives the same context, and the cost is known before any model call.</p>
     </div>
 
     <div class="lane">
@@ -449,7 +450,7 @@ Reviewed with `anthropic/claude-sonnet-5` &middot; estimated $0.0032.&lt;/sub&gt
     <div class="feature-card">
       <div class="f-num">Toward the left</div>
       <h4>Reproducible and bounded</h4>
-      <p>The same diff gives the same context, you can see exactly what was sent with <code>--dry-run</code>, and the bill has a ceiling. The price: it only follows paths we wrote. Callers are one hop away, found by text search in 18 file types, so a bug three calls deep or in another language is out of reach.</p>
+      <p>The same diff gives the same context, you can see exactly what was sent with <code>--dry-run</code>, and the bill has a ceiling. The price: it only follows paths we wrote. Callers are followed two steps (three at most), found by text search in 18 file types, and callees are found by their definition line, so a bug further out or in another language is out of reach.</p>
     </div>
     <div class="feature-card">
       <div class="f-num">Toward the right</div>
@@ -493,7 +494,7 @@ Reviewed with `anthropic/claude-sonnet-5` &middot; estimated $0.0032.&lt;/sub&gt
     <div class="feature-card">
       <div class="f-num">Following a trail</div>
       <h4>They can keep digging</h4>
-      <p>Our caller lookup stops one hop out: it finds who calls the changed function, not who calls those callers. A bug that only shows up two calls away is out of reach, and so is any language outside the 18 file types we search. Qodo, CodeRabbit and Open Code Review all give an agent tools to grep and read further when it needs to.</p>
+      <p>We follow callers two steps out (three at most) and add the definitions of functions the new lines start calling, but by fixed rules, each capped and dropped first when the budget is short. A bug further out than that, or in a file type outside the 18 we search, is out of reach. Qodo, CodeRabbit and Open Code Review give an agent tools to grep and read as far as it decides it needs to.</p>
     </div>
     <div class="feature-card">
       <div class="f-num">Running checks</div>
@@ -525,7 +526,7 @@ Reviewed with `anthropic/claude-sonnet-5` &middot; estimated $0.0032.&lt;/sub&gt
     <div class="feature-card">
       <div class="f-num">02</div>
       <h4>Deterministic context, no vector database</h4>
-      <p>A changed line expands to its whole function with Tree-sitter; its real callers are found by text search. A changed signature promotes those callers to must-include, even in files the pull request never touched.</p>
+      <p>A changed line expands to its whole function with Tree-sitter; its real callers, and what the new code calls, are found by text search. A changed signature promotes those callers to must-include, even in files the pull request never touched.</p>
     </div>
     <div class="feature-card">
       <div class="f-num">03</div>

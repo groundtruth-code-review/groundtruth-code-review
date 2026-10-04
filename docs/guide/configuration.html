@@ -89,6 +89,8 @@ dimensions: [correctness, security, conventions]
             <tr><td>min_confidence</td><td>0.7</td><td>Combined confidence (reviewer &times; skeptic) a finding must reach to post.</td></tr>
             <tr><td>max_inline_comments</td><td>10</td><td>How many findings can post. Survivors are ranked by severity &times; confidence and the rest are cut.</td></tr>
             <tr><td>context_token_budget</td><td>25000</td><td>Token ceiling for the assembled context. Optional blocks shrink to a signature line before being dropped, and every cut is reported.</td></tr>
+            <tr><td>caller_depth</td><td>2</td><td>How many steps out callers are followed, from 1 to 3. 1 is the functions that call a changed one; 2 adds who calls those. Callers past the first step are optional context and the first thing the budget drops.</td></tr>
+            <tr><td>include_callees</td><td>true</td><td>Whether to add the definitions of functions the changed lines start calling, so the reviewer can see what a new call does. Only calls on added lines, and only a name defined exactly once in the repository.</td></tr>
             <tr><td>max_diff_tokens_per_call</td><td>6000</td><td>A file whose diff is bigger is reviewed in hunk groups rather than one oversized call. No hunk is ever skipped.</td></tr>
             <tr><td>summary</td><td>true</td><td>Whether to make the stage-6 call that groups findings into one sentence at the top of the comment.</td></tr>
             <tr><td>proofs</td><td>true</td><td>Whether to post findings the parser can prove without asking a model: a changed Python signature that a caller can no longer satisfy. Off, only the model proposes. See <a href="languages.html#findings-the-parser-proves">what it proves</a>.</td></tr>

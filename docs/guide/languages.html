@@ -79,6 +79,7 @@
         <li><b>No grammar for the language:</b> chunking returns nothing for that file and the reviewer sees the raw diff without enclosing functions. The review still runs.</li>
         <li><b>A file that fails to parse:</b> same &mdash; that one file degrades, the rest of the review is unaffected. Nothing crashes over one bad file.</li>
         <li><b>Extension outside the caller list:</b> no caller context, so no signature-change promotion for that language.</li>
+        <li><b>A language whose functions don't start with <code>def</code>, <code>function</code>, <code>func</code> or <code>fn</code>:</b> no callee context. A Java or C# method is not found by its definition line, so the reviewer sees what the changed code calls only if the code is written that way.</li>
         <li><b>ripgrep missing:</b> no degradation at all. A pure-Python walk applies the same skip list, the same extension filter and the same size cap, and returns the same hits.</li>
       </ul>
 

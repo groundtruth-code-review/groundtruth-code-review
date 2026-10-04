@@ -152,6 +152,10 @@ class Config:
     min_confidence: float = 0.7
     max_inline_comments: int = 10
     context_token_budget: int = 25_000
+    # How many steps out callers are followed (1 = direct callers only), and
+    # whether the definitions of functions the changed lines call are added.
+    caller_depth: int = 2
+    include_callees: bool = True
     max_diff_tokens_per_call: int = 6_000
     summary: bool = True
     # Findings the parser can establish without asking a model (see proof.py).
@@ -272,6 +276,14 @@ def _require_bool(raw: dict, key: str, default: bool, where: str) -> bool:
     return value
 
 
+def _require_int(raw: dict, key: str, default: int, low: int, high: int, where: str) -> int:
+    value = raw.get(key, default)
+    # bool is an int in Python, and `caller_depth: true` is not a depth
+    if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
+        raise ConfigError(f"{where}: {key} must be a whole number from {low} to {high}, not {value!r}")
+    return value
+
+
 def load_config(path: Path | str | None) -> Config:
     """Read the file, then the environment. The environment is applied even
     when there is no file at all, so an endpoint set in CI works for a
@@ -298,6 +310,8 @@ def load_config(path: Path | str | None) -> Config:
         min_confidence=raw.get("min_confidence", defaults.min_confidence),
         max_inline_comments=raw.get("max_inline_comments", defaults.max_inline_comments),
         context_token_budget=raw.get("context_token_budget", defaults.context_token_budget),
+        caller_depth=_require_int(raw, "caller_depth", defaults.caller_depth, 1, 3, str(path)),
+        include_callees=_require_bool(raw, "include_callees", defaults.include_callees, str(path)),
         max_diff_tokens_per_call=raw.get("max_diff_tokens_per_call", defaults.max_diff_tokens_per_call),
         summary=raw.get("summary", defaults.summary),
         proofs=_require_bool(raw, "proofs", defaults.proofs, str(path)),

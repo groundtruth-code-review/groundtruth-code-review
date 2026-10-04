@@ -217,6 +217,8 @@ dimensions: [correctness, security, conventions]
             <tr><td>min_confidence</td><td>0.7</td><td>Combined confidence (reviewer &times; skeptic) a finding must reach to post.</td></tr>
             <tr><td>max_inline_comments</td><td>10</td><td>How many findings can post. Survivors are ranked by severity &times; confidence and the rest are cut.</td></tr>
             <tr><td>context_token_budget</td><td>25000</td><td>Token ceiling for the assembled context. Optional blocks shrink to a signature line before being dropped, and every cut is reported.</td></tr>
+            <tr><td>caller_depth</td><td>2</td><td>How many steps out callers are followed, from 1 to 3. 1 is the functions that call a changed one; 2 adds who calls those. Callers past the first step are optional context and the first thing the budget drops.</td></tr>
+            <tr><td>include_callees</td><td>true</td><td>Whether to add the definitions of functions the changed lines start calling, so the reviewer can see what a new call does. Only calls on added lines, and only a name defined exactly once in the repository.</td></tr>
             <tr><td>max_diff_tokens_per_call</td><td>6000</td><td>A file whose diff is bigger is reviewed in hunk groups rather than one oversized call. No hunk is ever skipped.</td></tr>
             <tr><td>summary</td><td>true</td><td>Whether to make the stage-6 call that groups findings into one sentence at the top of the comment.</td></tr>
             <tr><td>proofs</td><td>true</td><td>Whether to post findings the parser can prove without asking a model: a changed Python signature that a caller can no longer satisfy. Off, only the model proposes. See <a href="languages.html#findings-the-parser-proves">what it proves</a>.</td></tr>
@@ -444,7 +446,7 @@ PAGES["what-gets-sent"] = (
           <tbody>
             <tr>
               <td>Stage 4 &mdash; propose</td>
-              <td>One changed file's diff, plus the assembled context bundle: the enclosing functions of changed lines, and the callers of any changed function.</td>
+              <td>One changed file's diff, plus the assembled context bundle: the enclosing functions of changed lines, the callers of any changed function and, by default, their callers, and the definitions of functions the changed lines call.</td>
               <td>One per changed file</td>
             </tr>
             <tr>
@@ -464,7 +466,7 @@ PAGES["what-gets-sent"] = (
 
       <h2>What never leaves</h2>
       <ul>
-        <li><b>Files outside the diff and outside the context bundle.</b> The rest of the repository is never read into a prompt. A file is only included if it was changed, or if it contains a caller of a changed function.</li>
+        <li><b>Files outside the diff and outside the context bundle.</b> The rest of the repository is never read into a prompt. A file is only included if it was changed, if it contains a caller of a changed function or a caller of that caller, or if it defines a function the changed lines call. <code>caller_depth: 1</code> and <code>include_callees: false</code> narrow that to direct callers, and <code>--dry-run</code> lists exactly what would be sent.</li>
         <li><b>Your key, anywhere but the provider.</b> It is read from the environment and used to authenticate the call to the provider you chose. It is never written to a file, never logged, and the config loader refuses to start if it finds something key-shaped in <code>.groundtruth.yml</code>.</li>
         <li><b>To a server the reviewed code chooses.</b> The endpoint cannot be set from <code>.groundtruth.yml</code>, because that file can be edited by the pull request under review. Only the environment and the command line &mdash; the place your key lives &mdash; can say where requests go.</li>
         <li><b>Telemetry.</b> There is none. There is no service operated by this project for anything to be sent to &mdash; no accounts, no hosted component, no phone-home.</li>
@@ -525,6 +527,7 @@ PAGES["languages"] = (
         <li><b>No grammar for the language:</b> chunking returns nothing for that file and the reviewer sees the raw diff without enclosing functions. The review still runs.</li>
         <li><b>A file that fails to parse:</b> same &mdash; that one file degrades, the rest of the review is unaffected. Nothing crashes over one bad file.</li>
         <li><b>Extension outside the caller list:</b> no caller context, so no signature-change promotion for that language.</li>
+        <li><b>A language whose functions don't start with <code>def</code>, <code>function</code>, <code>func</code> or <code>fn</code>:</b> no callee context. A Java or C# method is not found by its definition line, so the reviewer sees what the changed code calls only if the code is written that way.</li>
         <li><b>ripgrep missing:</b> no degradation at all. A pure-Python walk applies the same skip list, the same extension filter and the same size cap, and returns the same hits.</li>
       </ul>
 

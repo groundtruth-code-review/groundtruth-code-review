@@ -188,19 +188,21 @@ def find_callers(
     return hits[:limit]
 
 
-def count_definitions(repo_root: Path | str, name: str) -> int:
-    """How many functions called `name` the repository defines.
+def find_definitions(repo_root: Path | str, name: str) -> list[CallerHit]:
+    """Where the repository defines a function called `name`.
 
     The caller search above throws definition lines away on purpose; this is
-    the same search keeping only them. It exists so a check that depends on
-    knowing *which* function a call refers to can first ask whether there is
-    only one candidate -- with two same-named functions, a call site that
-    looks wrong for one may be perfectly right for the other, and name
-    matching alone can't tell them apart. Raises if the search itself fails:
-    "I couldn't count" must not read as "there is exactly one."
+    the same search keeping only them. Two things use it: a check that
+    depends on knowing *which* function a call refers to, which first asks
+    whether there is only one candidate (with two same-named functions, a
+    call that looks wrong for one may be right for the other, and name
+    matching can't tell them apart), and the callee lookup, which needs the
+    definition itself. Raises if the search fails: "I couldn't look" must
+    not read as "there is exactly one" or as "there is none."
     """
     root = Path(repo_root)
     pattern = r"\b(?:def|function|func|fn)\s+" + re.escape(name) + r"\s*\("
+    hits: list[CallerHit] = []
     if shutil.which("rg"):
         proc = subprocess.run(
             ["rg", "--line-number", "--no-heading", *rg_filters(), pattern, str(root)],
@@ -210,15 +212,27 @@ def count_definitions(repo_root: Path | str, name: str) -> int:
         )
         if proc.returncode not in (0, 1):  # 1 just means "no matches"
             raise RuntimeError(f"definition search failed: {proc.stderr.strip()[:200]}")
-        return len([line for line in proc.stdout.splitlines() if line.strip()])
+        for line in proc.stdout.splitlines():
+            try:
+                path_str, line_no, text = line.split(":", 2)
+            except ValueError:
+                continue
+            rel = str(Path(path_str).resolve().relative_to(root.resolve()))
+            hits.append(CallerHit(path=rel, line=int(line_no), text=text.strip()))
+        return hits
 
     compiled = re.compile(pattern)
-    total = 0
-    for path in root.rglob("*"):
+    for path in sorted(root.rglob("*")):
         if not path.is_file() or any(part in _SKIP_DIRS for part in path.parts):
             continue
         if path.suffix not in _SEARCHABLE_EXT or path.stat().st_size > _MAX_FILE_BYTES:
             continue
-        total += sum(1 for line in path.read_text(encoding="utf-8", errors="ignore").splitlines()
-                     if compiled.search(line))
-    return total
+        for i, line in enumerate(path.read_text(encoding="utf-8", errors="ignore").splitlines(), start=1):
+            if compiled.search(line):
+                hits.append(CallerHit(path=str(path.relative_to(root)), line=i, text=line.strip()))
+    return hits
+
+
+def count_definitions(repo_root: Path | str, name: str) -> int:
+    """How many functions called `name` the repository defines."""
+    return len(find_definitions(repo_root, name))

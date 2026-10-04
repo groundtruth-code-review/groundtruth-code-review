@@ -68,6 +68,9 @@ This stage decides what the model is allowed to see. It makes no AI calls.
   plain Python walk as a fallback when ripgrep is missing.
 - If a function's signature changed, its callers are marked must-include and can
   never be dropped.
+- Past that, callers of those callers are added as optional context, along with the
+  definition of any function the changed lines start calling. Both are capped, and
+  they are the first things dropped when the budget is tight.
 - Everything is packed into a token budget. Optional blocks shrink to their signature
   line before being dropped, and every cut is reported.
 

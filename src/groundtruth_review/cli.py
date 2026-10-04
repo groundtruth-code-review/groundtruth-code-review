@@ -265,6 +265,8 @@ def run_review(
         head_sources=head_sources,
         base_sources=base_sources,
         budget_tokens=config.context_token_budget,
+        caller_depth=config.caller_depth,
+        include_callees=config.include_callees,
     )
 
     # One injected client stands in for every role (tests, mainly). Left

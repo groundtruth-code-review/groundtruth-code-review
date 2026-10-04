@@ -42,9 +42,10 @@ The same pipeline, with a worked example traced through every stage, is at
 
 Stage 3 is where the interesting work happens, and it calls no model at all:
 a changed line becomes the whole function that contains it, that function's
-real callers are found by text search, and a changed signature promotes those
-callers to must-include &mdash; which is how a break in a file the pull request
-never touched still reaches the reviewer.
+real callers are found by text search (and their callers, one step further),
+the definitions of functions the new lines call are added, and a changed
+signature promotes the direct callers to must-include &mdash; which is how a
+break in a file the pull request never touched still reaches the reviewer.
 
 ## Why
 
@@ -55,8 +56,9 @@ decisions follow from that:
 
 1. **Context is deterministic, not retrieved.** Instead of embeddings and
    similarity search, the reviewer parses the actual changed function, finds
-   its real callers with a text search, and — if a function's signature
-   changed — promotes those callers to *must-include* context. A caller still
+   its real callers (and what the new code calls) with a text search, and — if
+   a function's signature changed — promotes those callers to *must-include*
+   context. A caller still
    passing the old argument list is exactly the bug a diff-only review can't
    see.
 2. **Nothing posts unverified.** Every finding must quote code that literally
@@ -74,16 +76,17 @@ have not run any of them against Groundtruth.
 
 | | What decides the code the model reads | What checks a claim before it posts |
 | --- | --- | --- |
-| **Groundtruth** | Code. Tree-sitter finds the changed function and a text search finds its callers. The same diff gives the same context. | The quote must exist in the diff, on a changed line. A second model, optionally from another provider, can veto it. Every drop is recorded with a reason. |
+| **Groundtruth** | Code. Tree-sitter finds the changed function and a text search finds its callers and what the new code calls. The same diff gives the same context. | The quote must exist in the diff, on a changed line. A second model, optionally from another provider, can veto it. Every drop is recorded with a reason. |
 | Open Code Review¹ | Rules pick the files, then an agent reads files and searches the codebase. | Separate modules for comment position and content. The README doesn't detail filtering. |
 | CodeRabbit | A map of definitions and references plus an embedding index, then shell commands from the review agent. | Runs shell and Python checks in an isolated environment to confirm an assumption. |
 | Qodo | The agent fetches context itself with git diff, grep and file reads. Its codebase index was removed in 2.4. | Not described in the sources we read. |
 
 **Where they are ahead of us:**
 
-- **They can keep digging.** Our caller lookup stops one hop out, so a bug two
-  calls away is out of reach, as is any file type outside the 18 we search.
-  The other three give an agent tools to grep and read further.
+- **They can keep digging.** We follow callers two steps out (three at most)
+  and add the definitions of what the new lines call, by fixed rules. A bug
+  further out, or in a file type outside the 18 we search, is out of reach. The
+  other three give an agent tools to grep and read as far as it decides to.
 - **Their checks run; ours mostly read.** CodeRabbit executes commands and
   linters and attaches what came back. We run nothing, since a pull request's
   own tooling would run inside your CI. We do one check by parsing: when a
@@ -107,8 +110,8 @@ so if something here is out of date, [open an issue](https://github.com/groundtr
 
 ```
 src/groundtruth_review/
-├── context_engine/   # diff → hunks → enclosing functions → callers →
-│                      # signature-change detection → a budgeted context payload
+├── context_engine/   # diff → hunks → enclosing functions → callers (2 steps) and
+│                      # callees → signature-change detection → a budgeted context payload
 ├── quality_gate/      # hallucination check, adversarial cross-examination,
 │                      # fact-based fingerprinting — the verification pipeline
 ├── llm/                # a thin, embedded LiteLLM wrapper: model choice + BYOK
@@ -304,6 +307,8 @@ context_token_budget: 25000        # context assembled per review
 max_diff_tokens_per_call: 6000     # a bigger file is reviewed in hunk groups
 summary: true                      # one cheap call to group the findings
 proofs: true                       # post breaks the parser can prove, with no model call
+caller_depth: 2                    # steps out to follow callers (1-3)
+include_callees: true              # add definitions of what the new lines call
 dimensions: [correctness, security, conventions]
 
 # Optional: different models for the checking stages. Unset means every stage
