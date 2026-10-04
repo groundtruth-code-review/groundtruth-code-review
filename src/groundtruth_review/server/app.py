@@ -13,7 +13,7 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
 
 from . import db
 from .models import IngestRequest
@@ -79,7 +79,19 @@ def healthz() -> dict:
 def ingest(req: IngestRequest) -> dict:
     conn = db.connect()
     try:
-        review_id = db.ingest_review(conn, req)
+        ingested = db.ingest_review(conn, req)
     finally:
         conn.close()
-    return {"status": "ok", "id": review_id}
+    return {"status": "ok", "id": ingested.review_id, "feedback_recorded": ingested.feedback_recorded}
+
+
+@app.get("/stats", dependencies=[Depends(require_token)])
+def stats(repo: str = Query(min_length=1), days: int = Query(default=30, ge=1, le=3650)) -> dict:
+    """Per-category counts of what was posted and how people reacted to it, for
+    one repository. The numbers the other half of this server exists to collect.
+    """
+    conn = db.connect()
+    try:
+        return db.repo_stats(conn, repo, days)
+    finally:
+        conn.close()

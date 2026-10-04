@@ -1,9 +1,11 @@
-# Server mode: a scoped design, phase 1 built
+# Server mode: a scoped design, phases 1 and 3 partly built
 
 This describes the server-mode piece of the project (`adapters/bitbucket_dc` + `deploy/`).
-Phase 1 below — ingest only — is built, tested against a real Postgres, and
-covered by CI. Phases 2 and 3 are not: they remain what would need to be
-true before they exist, not a promise of order. Treat everything past
+Phase 1 below — ingest — is built, tested against a real Postgres, and
+covered by CI. Phase 3 — feedback — is built up to the point of *reporting*
+it: collected on GitHub and GitLab, stored, and readable at `GET /stats`. What
+is not built is anything that acts on it. Phase 2 is not built at all. They
+remain what would need to be true before they exist, not a promise of order. Treat everything past
 "A path that ships value before the hard part" as an RFC, and that section
 itself as the line between what's real and what's still proposed;
 [design.md](design.md) is the status report for the rest of the system.
@@ -15,11 +17,15 @@ docker compose -f deploy/docker-compose.yml up
 ```
 
 starts Postgres and the ingest API on `localhost:8000` — `GET /healthz`,
-`POST /reviews`. Point a CI adapter at it with `GROUNDTRUTH_INGEST_URL` (and
-`GROUNDTRUTH_INGEST_TOKEN` if the server has one configured — see
-`.env.example`) and its next run's JSON output lands in `reviews` and
-`findings`. Nothing reads that data back out yet; see "What a dashboard and
-a feedback loop are, concretely" below for what would.
+`POST /reviews`, `GET /stats`. Point a CI adapter at it with
+`GROUNDTRUTH_INGEST_URL` (and `GROUNDTRUTH_INGEST_TOKEN` if the server has one
+configured — see `.env.example`) and its next run's JSON output lands in
+`reviews` and `findings`. On GitHub and GitLab the same run also reads what
+people did with its earlier comments — thumbs up or down, resolved threads —
+and sends that along, so `GET /stats?repo=owner/name` can say, per category,
+how many posted findings got a thumbs-down or were resolved. It reports
+counts and does not tell you what to change; see "What a dashboard and a
+feedback loop are, concretely" below for what it does and doesn't do.
 
 ## Two questions, one answer
 
@@ -114,14 +120,20 @@ a dashboard is exactly the kind of ad-hoc querying Postgres is built for.
 Not a new frontend framework decision yet — that's premature before the
 data exists. Concretely, in order of how little each one requires:
 
-1. A read-only JSON API over `reviews` and `findings` — "how many findings
-   this repo, this week, by stage" — is a handful of SQL views. This alone
-   answers "check status" for anyone who isn't looking at the PR.
-2. A feedback signal — a 👎 reaction, a resolved-without-comment thread, a
-   dismissed suggestion — written to `feedback`, keyed to a fingerprint.
-   Each platform's webhook shape differs here and is the least-certain,
-   most-per-platform-effort part of this whole design.
-3. Fine-tuning, in the narrow sense this system can actually support today:
+1. **Built:** a read-only JSON API over `reviews` and `findings` — `GET
+   /stats` — answering "how many findings this repo, this period, by stage,
+   and how many did the parser prove." This alone answers "check status" for
+   anyone who isn't looking at the PR.
+2. **Built for GitHub and GitLab:** a feedback signal — a thumbs up or down, a
+   resolved thread — written to `feedback`, keyed to a fingerprint. It is
+   collected by *polling*, not webhooks: the next run of the adapter reads the
+   pull request and reports what it finds, so feedback arrives with the next
+   push and not when it happens, and a reaction someone later removes is not
+   un-recorded. A webhook receiver would fix both and is the Bitbucket Data
+   Center work. Bitbucket Cloud has no reactions on comments, so nothing is
+   collected there. Resolved is ambiguous (fixed, or dismissed?), so it is
+   stored but is not read as a negative.
+3. **Not built:** fine-tuning, in the narrow sense this system can actually support today:
    not retraining a model, but using `feedback` to suggest a per-repo
    `min_confidence` or `dimensions` change — "this repo's false-positive
    rate on `style` findings is high, consider raising the bar" — the same
@@ -150,9 +162,13 @@ read-only dashboard do not depend on it existing first:
    job, same core pipeline, `reviews`/`findings` written directly instead
    of only POSTed. This is where the queue described above is load-bearing
    rather than optional.
-3. **Feedback ingestion — not built.** Per-platform webhook subscriptions
-   writing to `feedback`, and the first read query that turns it into a
-   suggestion rather than just a number.
+3. **Feedback — collected and reported, not acted on.** The adapters
+   collect it, the server stores it, `/stats` reports it per category. What's
+   missing is the last step: turning a high thumbs-down rate into a suggested
+   `min_confidence` or `dimensions` change. That is deliberately not
+   automatic. The numbers are small, the signal is noisy (a thumbs-down can
+   mean "wrong" or "not worth fixing here"), and a threshold that tunes itself
+   on thin data would be a way to quietly make the reviewer worse.
 
 Phases 2 and 3 are where the actual uncertainty in this document lives, and
 where a review of this RFC should focus before anyone starts phase 2.

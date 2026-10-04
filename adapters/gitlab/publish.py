@@ -34,6 +34,7 @@ from common import (  # noqa: E402
     has_marker,
     inline_comment_body,
     maybe_ingest,
+    parse_finding_marker,
     parse_fingerprint_marker,
     render_summary,
     run_groundtruth_review,
@@ -102,8 +103,32 @@ class GitLabClient:
             detail = exc.read().decode(errors="replace")
             raise GitLabApiError(f"{method} {path} -> {exc.code}: {detail}") from exc
 
+    def _paginate(self, path: str, per_page: int = 100, max_pages: int = 10) -> list[dict]:
+        """Every item, not just the first page. GitLab returns 20 by default, and a
+        merge request collects system notes ("added 3 commits") with every push, so
+        crossing 20 is ordinary -- and past it the summary this action posted earlier
+        is on a page it never read, so it would post a second one and forget which
+        findings it had already said.
+        """
+        items: list[dict] = []
+        joiner = "&" if "?" in path else "?"
+        for page in range(1, max_pages + 1):
+            batch = self._request("GET", f"{path}{joiner}per_page={per_page}&page={page}") or []
+            items.extend(batch)
+            if len(batch) < per_page:
+                break
+        return items
+
     def list_notes(self, mr_iid: str) -> list[dict]:
-        return self._request("GET", f"/projects/{self.project}/merge_requests/{mr_iid}/notes") or []
+        return self._paginate(f"/projects/{self.project}/merge_requests/{mr_iid}/notes")
+
+    def list_discussions(self, mr_iid: str) -> list[dict]:
+        return self._paginate(f"/projects/{self.project}/merge_requests/{mr_iid}/discussions")
+
+    def list_award_emoji(self, mr_iid: str, note_id: int) -> list[dict]:
+        return self._paginate(
+            f"/projects/{self.project}/merge_requests/{mr_iid}/notes/{note_id}/award_emoji"
+        )
 
     def create_note(self, mr_iid: str, body: str) -> dict:
         return self._request(
@@ -119,6 +144,44 @@ class GitLabClient:
         return self._request(
             "POST", f"/projects/{self.project}/merge_requests/{mr_iid}/discussions", payload, form=True
         )
+
+
+def collect_feedback(client: GitLabClient, mr_iid: str) -> list[dict]:
+    """What people did with this job's earlier inline discussions: a thumbs up or
+    down, or resolving the thread. Each entry is about one finding, by fingerprint.
+
+    Best effort and read-only, like the GitHub adapter's: a failure to read it costs
+    this run's feedback report, never the review.
+    """
+    entries: list[dict] = []
+    try:
+        for discussion in client.list_discussions(mr_iid):
+            notes = discussion.get("notes") or []
+            first = notes[0] if notes else {}
+            fingerprint = parse_finding_marker(first.get("body", ""))
+            if not fingerprint:
+                continue
+            counts: dict[str, int] = {}
+            for award in client.list_award_emoji(mr_iid, first["id"]):
+                if award.get("name") in ("thumbsup", "thumbsdown"):
+                    counts[award["name"]] = counts.get(award["name"], 0) + 1
+            for name, count in counts.items():
+                entries.append(
+                    {
+                        "fingerprint": fingerprint,
+                        "kind": "reaction",
+                        "source": f"gitlab:{name}",
+                        "count": count,
+                    }
+                )
+            if first.get("resolved") is True:
+                entries.append(
+                    {"fingerprint": fingerprint, "kind": "resolved", "source": "gitlab:resolved", "count": 1}
+                )
+    except GitLabApiError as exc:
+        print(f"warning: could not read feedback on earlier discussions: {exc}", file=sys.stderr)
+        return []
+    return entries
 
 
 def find_previous_summary(client: GitLabClient, mr_iid: str) -> dict | None:
@@ -173,6 +236,7 @@ def main() -> int:
         head_sha=head_sha,
         started_at=started_at,
         finished_at=finished_at,
+        feedback=collect_feedback(client, mr_iid) if os.environ.get("GROUNDTRUTH_INGEST_URL") else None,
     )
 
     return 0

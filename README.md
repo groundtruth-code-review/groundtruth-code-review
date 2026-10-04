@@ -18,10 +18,10 @@ Data Center.
 
 > **Status: early / alpha.** The pipeline, the CLI, the eval harness and the
 > GitHub, GitLab and Bitbucket Cloud adapters are implemented and tested
-> (290 tests, all green). An optional server mode — an ingest API and the
-> database behind it — is implemented too (7 more tests, against a real
-> Postgres); a webhook receiver for Bitbucket Data Center and anything that
-> reads that database back out are not; see
+> (370 tests, all green). An optional server mode — an ingest API, the
+> database behind it, feedback capture and a stats endpoint — is implemented
+> too (tested against a real Postgres); a webhook receiver for Bitbucket Data
+> Center and anything that acts on the feedback automatically are not; see
 > [docs/server-mode-design.md](docs/server-mode-design.md). Nothing here is
 > published to PyPI yet — the install instructions below use a git URL until
 > it is.
@@ -94,9 +94,10 @@ have not run any of them against Groundtruth.
   and a call that can't bind is reported with proof. Every other claim is
   judged by a second model reading the code.
 - **They remember what your team decided.** Qodo keeps an index of past review
-  decisions and conventions. Our only memory is which findings were already
-  posted on this pull request, and nothing reads a dismissal back yet
-  ([scoped, not built](docs/server-mode-design.md)).
+  decisions and conventions and draws on it. We record thumbs and resolved
+  threads on GitHub and GitLab and report them per category on the server, but
+  nothing applies them to the next review: you read the numbers and move
+  `min_confidence` yourself ([details](docs/server-mode-design.md)).
 
 The full version, with the placement graphic, is
 **[on the site](https://groundtruth-code-review.github.io/groundtruth-code-review/#compared)**.

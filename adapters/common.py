@@ -23,6 +23,9 @@ from datetime import datetime
 
 SUMMARY_MARKER = "<!-- groundtruth-review:summary -->"
 FINGERPRINT_PREFIX = "<!-- groundtruth-review:fingerprints "
+# On each inline comment: which finding it is about. A later run reads reactions and
+# resolved threads off the pull request, and this is how it knows whose they are.
+FINDING_PREFIX = "<!-- groundtruth-review:finding "
 
 ENV_INGEST_URL = "GROUNDTRUTH_INGEST_URL"
 ENV_INGEST_TOKEN = "GROUNDTRUTH_INGEST_TOKEN"
@@ -152,6 +155,22 @@ def render_summary(outcome: dict) -> str:
     return "\n".join(lines)
 
 
+def render_finding_marker(fingerprint: str) -> str:
+    return f"{FINDING_PREFIX}{fingerprint} -->"
+
+
+def parse_finding_marker(comment_body: str) -> str | None:
+    """The fingerprint an inline comment was posted for, or None if it isn't one of ours."""
+    start = comment_body.find(FINDING_PREFIX)
+    if start == -1:
+        return None
+    end = comment_body.find("-->", start)
+    if end == -1:
+        return None
+    fingerprint = comment_body[start + len(FINDING_PREFIX) : end].strip()
+    return fingerprint or None
+
+
 def has_marker(comment_body: str) -> bool:
     return SUMMARY_MARKER in (comment_body or "")
 
@@ -174,6 +193,8 @@ def inline_comment_body(finding: dict) -> str:
     # difference between a comment worth weighing and one worth fixing.
     if finding.get("proof"):
         body += f"\n\n_{finding['proof']}_"
+    if finding.get("fingerprint"):
+        body += f"\n\n{render_finding_marker(finding['fingerprint'])}"
     return body
 
 
@@ -205,6 +226,7 @@ def maybe_ingest(
     head_sha: str,
     started_at: datetime,
     finished_at: datetime,
+    feedback: list[dict] | None = None,
 ) -> None:
     """POST `outcome` -- exactly what `run_groundtruth_review` returned --
     to the optional server-mode ingest endpoint (see
@@ -229,6 +251,7 @@ def maybe_ingest(
             "started_at": started_at.isoformat(),
             "finished_at": finished_at.isoformat(),
             "outcome": outcome,
+            "feedback": feedback or [],
         }
     ).encode("utf-8")
 

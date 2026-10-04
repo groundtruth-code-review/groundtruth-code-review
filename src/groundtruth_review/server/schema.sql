@@ -60,23 +60,32 @@ CREATE TABLE IF NOT EXISTS findings (
     -- "bad_location", "dedupe", "low_confidence", "ranked_out") otherwise.
     dropped_at     TEXT,
     dropped_reason TEXT,
+    -- Set when the parser established the finding rather than a model proposing it.
+    proof          TEXT,
     created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_findings_review ON findings (review_id);
 CREATE INDEX IF NOT EXISTS idx_findings_fingerprint ON findings (fingerprint);
 
--- Nothing writes here yet. This is phase 3 of server-mode-design.md: a
--- reaction, a resolved-without-comment thread, a dismissed suggestion,
--- keyed to the finding it was about. Created now so that phase is an
--- ingest path against an existing table, not a migration against a
--- database people are already depending on.
+-- What people did with a posted finding: a thumbs up or down, a resolved
+-- thread. One row per (finding, kind, source) holding the latest count the
+-- adapter saw, so reporting the same reaction again updates it instead of
+-- piling up duplicates. `source` is "<platform>:<signal>", e.g. "github:-1".
 CREATE TABLE IF NOT EXISTS feedback (
     id         BIGSERIAL PRIMARY KEY,
     finding_id BIGINT NOT NULL REFERENCES findings (id) ON DELETE CASCADE,
     kind       TEXT NOT NULL,
     source     TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    count      INTEGER NOT NULL DEFAULT 1,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- A database created before these columns existed picks them up here.
+ALTER TABLE findings ADD COLUMN IF NOT EXISTS proof TEXT;
+ALTER TABLE feedback ADD COLUMN IF NOT EXISTS count INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE feedback ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
+
 CREATE INDEX IF NOT EXISTS idx_feedback_finding ON feedback (finding_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_feedback_unique ON feedback (finding_id, kind, source);

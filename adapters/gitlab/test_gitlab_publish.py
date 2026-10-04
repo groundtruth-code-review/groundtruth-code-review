@@ -127,3 +127,47 @@ def test_an_http_error_names_the_call():
         assert "403" in str(exc)
     else:
         raise AssertionError("an API failure must not pass silently")
+
+
+# ------------------------------------------------ reading what people did with our discussions
+
+
+def test_a_long_note_list_is_read_in_full_not_just_the_first_page():
+    page_one = [{"id": i, "body": "system note"} for i in range(100)]
+    opener = FakeOpener([page_one, [{"id": 100, "body": "last"}]])
+    notes = _client(opener).list_notes("7")
+    assert len(notes) == 101 and notes[-1]["body"] == "last"
+    assert [r[1].rsplit("?", 1)[1] for r in opener.requests] == ["per_page=100&page=1", "per_page=100&page=2"]
+
+
+def _discussion(note_id, fingerprint, resolved=False, body=None):
+    marker = f"<!-- groundtruth-review:finding {fingerprint} -->" if fingerprint else ""
+    return {"notes": [{"id": note_id, "body": body or f"**HIGH**\n\nT\n\n{marker}", "resolved": resolved}]}
+
+
+def test_thumbs_and_resolved_discussions_are_reported_per_finding():
+    discussions = [_discussion(1, "fp-a"), _discussion(2, "fp-b", resolved=True)]
+    opener = FakeOpener([
+        discussions,
+        [{"name": "thumbsdown"}, {"name": "thumbsdown"}, {"name": "heart"}],  # note 1's awards
+        [{"name": "thumbsup"}],  # note 2's awards
+    ])
+    assert publish.collect_feedback(_client(opener), "7") == [
+        {"fingerprint": "fp-a", "kind": "reaction", "source": "gitlab:thumbsdown", "count": 2},
+        {"fingerprint": "fp-b", "kind": "reaction", "source": "gitlab:thumbsup", "count": 1},
+        {"fingerprint": "fp-b", "kind": "resolved", "source": "gitlab:resolved", "count": 1},
+    ]
+
+
+def test_a_discussion_that_is_not_ours_is_not_feedback_and_costs_no_award_lookup():
+    opener = FakeOpener([[_discussion(5, None, body="a person's thread")]])
+    assert publish.collect_feedback(_client(opener), "7") == []
+    assert len(opener.requests) == 1
+
+
+def test_a_failure_reading_feedback_costs_the_report_not_the_review():
+    class Failing:
+        def __call__(self, req):
+            raise publish.urllib.error.HTTPError(req.full_url, 403, "forbidden", {}, None)
+
+    assert publish.collect_feedback(_client(Failing()), "7") == []

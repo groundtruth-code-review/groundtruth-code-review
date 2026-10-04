@@ -9,6 +9,7 @@ not before there is any.
 from __future__ import annotations
 
 import os
+from dataclasses import dataclass
 from pathlib import Path
 
 import psycopg
@@ -68,6 +69,7 @@ def _finding_rows(review_id: int, req: IngestRequest) -> list[tuple]:
             True,
             None,
             None,
+            f.proof,
         )
         for f in req.outcome.findings
     ]
@@ -85,14 +87,60 @@ def _finding_rows(review_id: int, req: IngestRequest) -> list[tuple]:
             False,
             f.dropped_at,
             f.reason,
+            f.proof,
         )
         for f in req.outcome.dropped
     ]
     return rows
 
 
-def ingest_review(conn: psycopg.Connection, req: IngestRequest) -> int:
-    """Write one review and its findings; return the review's id.
+@dataclass(frozen=True)
+class Ingested:
+    review_id: int
+    feedback_recorded: int
+
+
+_UPSERT_FEEDBACK = """
+    INSERT INTO feedback (finding_id, kind, source, count)
+    VALUES (%s, %s, %s, %s)
+    ON CONFLICT (finding_id, kind, source) DO UPDATE SET count = EXCLUDED.count, updated_at = now()
+"""
+
+
+def _record_feedback(cur, req: IngestRequest) -> int:
+    """File each reported reaction under the latest posted finding it is about.
+
+    A reaction is reported on a later run than the one that posted the
+    finding, so the finding is looked up by fingerprint across every review of
+    this pull request. One the server never saw (it was not running when that
+    comment was posted) is skipped rather than invented.
+
+    Only ever adds or raises what is stored: a reaction someone later removes
+    is simply not reported again, so a stale count can outlive it. That is the
+    safe direction to be wrong in -- a failed read of the pull request must not
+    be able to erase feedback.
+    """
+    recorded = 0
+    for entry in req.feedback:
+        cur.execute(
+            """
+            SELECT f.id FROM findings f JOIN reviews r ON r.id = f.review_id
+            WHERE r.platform = %s AND r.repo = %s AND r.pr_number = %s
+              AND f.fingerprint = %s AND f.posted
+            ORDER BY f.id DESC LIMIT 1
+            """,
+            (req.platform, req.repo, req.pr_number, entry.fingerprint),
+        )
+        row = cur.fetchone()
+        if row is None:
+            continue
+        cur.execute(_UPSERT_FEEDBACK, (row[0], entry.kind, entry.source, entry.count))
+        recorded += 1
+    return recorded
+
+
+def ingest_review(conn: psycopg.Connection, req: IngestRequest) -> Ingested:
+    """Write one review, its findings and any feedback it reports.
 
     Upserts on (platform, repo, head_sha): a retried POST or a re-triggered
     CI run for the same commit updates the existing row and replaces its
@@ -158,7 +206,18 @@ def ingest_review(conn: psycopg.Connection, req: IngestRequest) -> int:
 
         # Re-ingesting the same commit replaces its findings outright
         # rather than merging: a finding the model no longer proposes on a
-        # later run should not linger here as a stale row.
+        # later run should not linger here as a stale row. Feedback hangs off
+        # those rows and would go with them, so it is set aside first and put
+        # back on the matching posted finding afterwards.
+        cur.execute(
+            """
+            SELECT f.fingerprint, b.kind, b.source, b.count
+            FROM feedback b JOIN findings f ON f.id = b.finding_id
+            WHERE f.review_id = %s
+            """,
+            (review_id,),
+        )
+        kept = cur.fetchall()
         cur.execute("DELETE FROM findings WHERE review_id = %s", (review_id,))
         rows = _finding_rows(review_id, req)
         if rows:
@@ -166,10 +225,94 @@ def ingest_review(conn: psycopg.Connection, req: IngestRequest) -> int:
                 """
                 INSERT INTO findings (
                     review_id, fingerprint, file, line, category, severity,
-                    confidence, title, quoted_code, posted, dropped_at, dropped_reason
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    confidence, title, quoted_code, posted, dropped_at, dropped_reason, proof
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 rows,
             )
+        for fingerprint, kind, source, count in kept:
+            cur.execute(
+                "SELECT id FROM findings WHERE review_id = %s AND fingerprint = %s AND posted "
+                "ORDER BY id LIMIT 1",
+                (review_id, fingerprint),
+            )
+            row = cur.fetchone()
+            if row is not None:
+                cur.execute(_UPSERT_FEEDBACK, (row[0], kind, source, count))
+        recorded = _record_feedback(cur, req)
     conn.commit()
-    return review_id
+    return Ingested(review_id=review_id, feedback_recorded=recorded)
+
+
+_THUMBS_UP = "('+1', 'thumbsup')"
+_THUMBS_DOWN = "('-1', 'thumbsdown')"
+
+
+def repo_stats(conn: psycopg.Connection, repo: str, days: int) -> dict:
+    """What the stored reviews and the feedback on them add up to, for one repo.
+
+    Counted per finding, not per reaction: `thumbs_down` is how many posted
+    findings got at least one thumbs-down, so dividing it by `posted` is a rate
+    that means something. Small numbers say little; this reports, it doesn't
+    advise.
+    """
+    window = "r.started_at >= now() - make_interval(days => %s)"
+    with conn.cursor() as cur:
+        cur.execute(
+            f"SELECT count(*), count(*) FILTER (WHERE review_incomplete) FROM reviews r "
+            f"WHERE r.repo = %s AND {window}",
+            (repo, days),
+        )
+        total, incomplete = cur.fetchone()
+
+        cur.execute(
+            f"""
+            SELECT f.posted, coalesce(f.dropped_at, ''), (coalesce(f.proof, '') <> ''), count(*)
+            FROM findings f JOIN reviews r ON r.id = f.review_id
+            WHERE r.repo = %s AND {window}
+            GROUP BY 1, 2, 3
+            """,
+            (repo, days),
+        )
+        posted = proven = 0
+        dropped: dict[str, int] = {}
+        for was_posted, stage, is_proven, n in cur.fetchall():
+            if was_posted:
+                posted += n
+                proven += n if is_proven else 0
+            else:
+                dropped[stage or "ranked_out"] = dropped.get(stage or "ranked_out", 0) + n
+
+        def reacted(signals: str) -> str:
+            return (
+                "count(*) FILTER (WHERE f.posted AND EXISTS (SELECT 1 FROM feedback b "
+                "WHERE b.finding_id = f.id AND b.kind = 'reaction' "
+                f"AND split_part(b.source, ':', 2) IN {signals}))"
+            )
+
+        cur.execute(
+            f"""
+            SELECT f.category,
+                   count(*) FILTER (WHERE f.posted),
+                   {reacted(_THUMBS_UP)},
+                   {reacted(_THUMBS_DOWN)},
+                   count(*) FILTER (WHERE f.posted AND EXISTS (SELECT 1 FROM feedback b
+                       WHERE b.finding_id = f.id AND b.kind = 'resolved'))
+            FROM findings f JOIN reviews r ON r.id = f.review_id
+            WHERE r.repo = %s AND {window}
+            GROUP BY f.category ORDER BY f.category
+            """,
+            (repo, days),
+        )
+        by_category = {
+            category: {"posted": p, "thumbs_up": up, "thumbs_down": down, "resolved": res}
+            for category, p, up, down, res in cur.fetchall()
+            if p
+        }
+    return {
+        "repo": repo,
+        "days": days,
+        "reviews": {"total": total, "incomplete": incomplete},
+        "findings": {"posted": posted, "proven": proven, "dropped": dropped},
+        "by_category": by_category,
+    }

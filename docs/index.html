@@ -42,7 +42,7 @@
         <a class="btn btn-secondary" href="#quickstart">Copy the workflow</a>
       </div>
       <div class="stat-bar">
-        <div class="stat"><b>290</b><span>tests, offline</span></div>
+        <div class="stat"><b>370</b><span>tests, offline</span></div>
         <div class="stat"><b>3 + image</b><span>platforms covered</span></div>
         <div class="stat"><b>&#36;0.003&ndash;0.01</b><span>typical cost / PR</span></div>
         <div class="stat"><b>MIT</b><span>no seat license</span></div>
@@ -503,8 +503,8 @@ Reviewed with `anthropic/claude-sonnet-5` &middot; estimated $0.0032.&lt;/sub&gt
     </div>
     <div class="feature-card">
       <div class="f-num">Learning from your team</div>
-      <h4>They remember what your team decided</h4>
-      <p>Qodo keeps an index of past review decisions and team conventions to draw on. Groundtruth&rsquo;s only memory is which findings it already posted on this pull request. If your team keeps dismissing the same kind of comment, nothing reads that back yet, and you turn <code>min_confidence</code> up by hand. Reading it back is <a href="https://github.com/groundtruth-code-review/groundtruth-code-review/blob/main/docs/server-mode-design.md" style="color:var(--accent)">scoped in the server-mode design</a>, not built.</p>
+      <h4>They apply what your team decided</h4>
+      <p>Qodo keeps an index of past review decisions and team conventions and draws on it. On GitHub and GitLab we now record thumbs up, thumbs down and resolved threads on our earlier comments, and the optional server reports them per category, so you can see that one kind of finding keeps getting a thumbs-down. But nothing applies that to the next review: you read the numbers and turn <code>min_confidence</code> up by hand. Doing it automatically is <a href="https://github.com/groundtruth-code-review/groundtruth-code-review/blob/main/docs/server-mode-design.md" style="color:var(--accent)">deliberately not built</a>, because a threshold that tunes itself on thin, noisy data can quietly make the reviewer worse.</p>
     </div>
   </div>
 

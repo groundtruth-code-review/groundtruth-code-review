@@ -33,6 +33,7 @@ from common import (  # noqa: E402
     has_marker,
     inline_comment_body,
     maybe_ingest,
+    parse_finding_marker,
     parse_fingerprint_marker,
     render_fingerprint_marker,
     render_summary,
@@ -49,6 +50,8 @@ __all__ = [
     "render_summary",
     "run_groundtruth_review",
     "maybe_ingest",
+    "parse_finding_marker",
+    "collect_feedback",
     "GitHubClient",
     "GitHubApiError",
     "inline_comment_payloads",
@@ -108,8 +111,65 @@ class GitHubClient:
             detail = exc.read().decode(errors="replace")
             raise GitHubApiError(f"{method} {path} -> {exc.code}: {detail}") from exc
 
+    def _paginate(self, path: str, per_page: int = 100, max_pages: int = 10) -> list[dict]:
+        """Every item, not just the first page. GitHub returns 30 by default, and
+        a pull request with more comments than that would otherwise hide this
+        action's own earlier summary from it -- so it would post a second one and
+        forget which findings it had already said.
+        """
+        items: list[dict] = []
+        joiner = "&" if "?" in path else "?"
+        for page in range(1, max_pages + 1):
+            batch = self._request("GET", f"{path}{joiner}per_page={per_page}&page={page}") or []
+            items.extend(batch)
+            if len(batch) < per_page:
+                break
+        return items
+
     def list_issue_comments(self, pr_number: int) -> list[dict]:
-        return self._request("GET", f"/repos/{self.repo}/issues/{pr_number}/comments") or []
+        return self._paginate(f"/repos/{self.repo}/issues/{pr_number}/comments")
+
+    def list_review_comments(self, pr_number: int) -> list[dict]:
+        return self._paginate(f"/repos/{self.repo}/pulls/{pr_number}/comments")
+
+    def resolved_comment_ids(self, pr_number: int) -> set[int]:
+        """Ids of the review comments whose thread has been marked resolved.
+
+        Only GraphQL exposes this. The id returned for a thread's first comment is
+        the same number the REST API uses, which is how the two are matched up.
+        """
+        owner, name = self.repo.split("/", 1)
+        query = (
+            "query($owner:String!,$name:String!,$number:Int!,$after:String){"
+            "repository(owner:$owner,name:$name){pullRequest(number:$number){"
+            "reviewThreads(first:100,after:$after){pageInfo{hasNextPage endCursor} "
+            "nodes{isResolved comments(first:1){nodes{databaseId}}}}}}}"
+        )
+        resolved: set[int] = set()
+        after = None
+        for _ in range(10):
+            reply = self._request(
+                "POST",
+                "/graphql",
+                {
+                    "query": query,
+                    "variables": {"owner": owner, "name": name, "number": pr_number, "after": after},
+                },
+            ) or {}
+            threads = (((reply.get("data") or {}).get("repository") or {}).get("pullRequest") or {}).get(
+                "reviewThreads"
+            )
+            if not threads:
+                break
+            for node in threads.get("nodes", []):
+                comments = (node.get("comments") or {}).get("nodes") or []
+                if node.get("isResolved") and comments and comments[0].get("databaseId") is not None:
+                    resolved.add(comments[0]["databaseId"])
+            page = threads.get("pageInfo") or {}
+            if not page.get("hasNextPage"):
+                break
+            after = page.get("endCursor")
+        return resolved
 
     def create_issue_comment(self, pr_number: int, body: str) -> dict:
         return self._request("POST", f"/repos/{self.repo}/issues/{pr_number}/comments", {"body": body})
@@ -119,6 +179,48 @@ class GitHubClient:
 
     def create_review_comment(self, pr_number: int, payload: dict) -> dict:
         return self._request("POST", f"/repos/{self.repo}/pulls/{pr_number}/comments", payload)
+
+
+def collect_feedback(client: GitHubClient, pr_number: int) -> list[dict]:
+    """What people did with this action's earlier inline comments: a thumbs up or
+    down, or resolving the thread. Each entry is about one finding, by fingerprint.
+
+    Best effort, and read-only: it never changes what is posted, and a failure to
+    read it (a token without access, an API hiccup) costs this run's feedback
+    report, not the review.
+    """
+    try:
+        ours = [
+            (parse_finding_marker(c.get("body", "")), c)
+            for c in client.list_review_comments(pr_number)
+        ]
+        ours = [(fp, c) for fp, c in ours if fp]
+        if not ours:
+            return []
+        resolved = client.resolved_comment_ids(pr_number)
+    except GitHubApiError as exc:
+        print(f"warning: could not read feedback on earlier comments: {exc}", file=sys.stderr)
+        return []
+
+    entries: list[dict] = []
+    for fingerprint, comment in ours:
+        reactions = comment.get("reactions") or {}
+        for key in ("+1", "-1"):
+            count = int(reactions.get(key) or 0)
+            if count:
+                entries.append(
+                    {
+                        "fingerprint": fingerprint,
+                        "kind": "reaction",
+                        "source": f"github:{key}",
+                        "count": count,
+                    }
+                )
+        if comment.get("id") in resolved:
+            entries.append(
+                {"fingerprint": fingerprint, "kind": "resolved", "source": "github:resolved", "count": 1}
+            )
+    return entries
 
 
 def find_previous_summary(client: GitHubClient, pr_number: int) -> dict | None:
@@ -197,6 +299,7 @@ def main() -> int:
         head_sha=head_sha,
         started_at=started_at,
         finished_at=finished_at,
+        feedback=collect_feedback(client, pr_number) if os.environ.get("GROUNDTRUTH_INGEST_URL") else None,
     )
 
     return 0

@@ -481,6 +481,9 @@ PAGES["what-gets-sent"] = (
         <li><b>Nowhere at all</b> if you point <code>model</code> at <code>ollama/&lt;model&gt;</code>. Every call goes to a local endpoint, no key exists, and no code leaves the machine running the review.</li>
       </ul>
 
+      <h2>The optional ingest server</h2>
+      <p>Only if you set <code>GROUNDTRUTH_INGEST_URL</code>, which is unset by default. After the review has posted, the adapter then sends that run's result to the URL you gave: each finding's file, line, category, severity, title and quoted line of code, the summary, the model and the cost estimate. On GitHub and GitLab it also sends the fingerprints of its earlier findings with counts of the thumbs up, thumbs down and resolved threads they received; that part carries no code. The server is one you run yourself, so none of this goes to this project. Unset, nothing is sent and the adapter makes no extra calls to your platform.</p>
+
       <h2>Retention</h2>
       <p>Groundtruth stores nothing. It is a process that starts, reads a diff and exits &mdash; no database, no cache, no artifacts beyond the comments it posts. The one piece of state it keeps between runs is the list of fingerprints in the summary comment on your own pull request, and a fingerprint is a SHA-1 of the file path, the surrounding code and the category &mdash; not the code itself.</p>
       <p>What your provider retains is your provider's policy, and worth reading. If that answer is unacceptable for your codebase, the local-model path exists precisely for that case.</p>
@@ -665,10 +668,10 @@ PAGES["faq"] = (
       <p>If you can, yes &mdash; ideally from a different provider. Review with Claude and verify with GPT, or the reverse. The verifier's whole job is to doubt the first model, and a model is a poor judge of mistakes it would make itself. Nothing in the code prefers one arrangement; each stage takes its own model string. See <a href="configuration.html">verify with a different provider</a>, and note that it needs both providers' keys.</p>
 
       <h2>How mature is this?</h2>
-      <p>Honestly: alpha. The pipeline, the CLI, the eval harness and three platform adapters are implemented and covered by 290 tests that run offline against fake model clients, plus labeled cases replayed on every build. What that does <i>not</i> prove is behaviour against a live model on your codebase at scale &mdash; no test can. Start it on one repository, read what it posts, and tune <code>min_confidence</code> before you turn it on everywhere.</p>
+      <p>Honestly: alpha. The pipeline, the CLI, the eval harness and three platform adapters are implemented and covered by 370 tests that run offline against fake model clients, plus labeled cases replayed on every build. What that does <i>not</i> prove is behaviour against a live model on your codebase at scale &mdash; no test can. Start it on one repository, read what it posts, and tune <code>min_confidence</code> before you turn it on everywhere.</p>
 
       <h2>What is still missing?</h2>
-      <p>Publication to PyPI, so installing stops meaning a git URL; and a self-hosted server mode for Bitbucket Data Center, which is the one platform with no free per-pull-request CI container. The scoped design for the second is in <a href="REPOURL/blob/main/docs/server-mode-design.md">docs/server-mode-design.md</a>.</p>
+      <p>Publication to PyPI, so installing stops meaning a git URL; and a self-hosted server mode for Bitbucket Data Center, which is the one platform with no free per-pull-request CI container. The scoped design for the second is in <a href="REPOURL/blob/main/docs/server-mode-design.md">docs/server-mode-design.md</a>. Letting feedback tune the reviewer automatically is also not built, on purpose.</p>
 """,
 )
 

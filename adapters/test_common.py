@@ -45,8 +45,8 @@ def test_summary_survives_a_missing_model_and_cost():
 
 def test_a_proven_finding_says_it_was_checked_by_parsing():
     proven = {**FINDING, "proof": "Checked by parsing, not by a model: checkout.py:5 does not pass 'promos'"}
-    assert inline_comment_body(proven).endswith(
-        "_Checked by parsing, not by a model: checkout.py:5 does not pass 'promos'_"
+    assert "_Checked by parsing, not by a model: checkout.py:5 does not pass 'promos'_" in (
+        inline_comment_body(proven)
     )
 
 
@@ -220,6 +220,57 @@ def test_maybe_ingest_swallows_a_failed_post_instead_of_raising():
     common.os.environ["GROUNDTRUTH_INGEST_URL"] = "https://ingest.example/reviews"
     try:
         maybe_ingest(**_ingest_args())  # must not raise
+    finally:
+        common.urllib.request.urlopen = original
+        common.os.environ.pop("GROUNDTRUTH_INGEST_URL", None)
+
+
+def test_an_inline_comment_carries_a_hidden_marker_naming_its_finding():
+    from common import parse_finding_marker
+
+    body = inline_comment_body(FINDING)
+    assert parse_finding_marker(body) == "abc123"
+    assert "groundtruth-review:finding" in body  # present in the text, invisible once rendered
+
+
+def test_a_comment_that_is_not_ours_has_no_finding():
+    from common import parse_finding_marker
+
+    assert parse_finding_marker("looks good") is None
+    assert parse_finding_marker("<!-- groundtruth-review:finding  -->") is None
+
+
+def test_a_finding_without_a_fingerprint_gets_no_marker():
+    without = {k: v for k, v in FINDING.items() if k != "fingerprint"}
+    assert "groundtruth-review:finding" not in inline_comment_body(without)
+
+
+def test_maybe_ingest_sends_the_feedback_it_was_given():
+    import json as jsonlib
+
+    import common
+    captured = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    def fake_urlopen(request, timeout=None):
+        captured["body"] = jsonlib.loads(request.data)
+        return FakeResponse()
+
+    entry = {"fingerprint": "abc123", "kind": "reaction", "source": "github:-1", "count": 2}
+    original = common.urllib.request.urlopen
+    common.urllib.request.urlopen = fake_urlopen
+    common.os.environ["GROUNDTRUTH_INGEST_URL"] = "https://ingest.example/reviews"
+    try:
+        maybe_ingest(**_ingest_args(feedback=[entry]))
+        assert captured["body"]["feedback"] == [entry]
+        maybe_ingest(**_ingest_args())
+        assert captured["body"]["feedback"] == []  # always present, so the server needn't guess
     finally:
         common.urllib.request.urlopen = original
         common.os.environ.pop("GROUNDTRUTH_INGEST_URL", None)

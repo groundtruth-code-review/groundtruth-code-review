@@ -135,7 +135,9 @@ def test_client_lists_comments_via_get():
     client = GitHubClient(token="t", repo="me/repo", opener=opener)
     comments = client.list_issue_comments(42)
     assert comments == [{"id": 1, "body": "unrelated"}]
-    assert opener.requests[0] == ("GET", "https://api.github.com/repos/me/repo/issues/42/comments")
+    assert opener.requests[0] == (
+        "GET", "https://api.github.com/repos/me/repo/issues/42/comments?per_page=100&page=1"
+    )
 
 
 def test_upsert_creates_when_no_marker_comment_exists():
@@ -220,3 +222,102 @@ def test_a_deleted_summary_comment_does_not_kill_the_review():
     upsert_summary(Client(), 42, "body", previous={"id": 99, "body": "old"})
 
     assert calls == [("PATCH", 99), ("POST", 42)]
+
+
+# ------------------------------------------------ reading what people did with our comments
+
+
+def test_a_long_comment_list_is_read_in_full_not_just_the_first_page():
+    # GitHub returns 30 by default; a busy pull request used to hide this action's
+    # own summary from it, so it posted a second one and forgot what it had said
+    page_one = [{"id": i, "body": "x"} for i in range(100)]
+    page_two = [{"id": 100, "body": "last"}]
+    opener = FakeOpener([page_one, page_two])
+    client = GitHubClient(token="t", repo="me/repo", opener=opener)
+    comments = client.list_issue_comments(42)
+    assert len(comments) == 101 and comments[-1]["body"] == "last"
+    assert [url.rsplit("?", 1)[1] for _, url in opener.requests] == [
+        "per_page=100&page=1", "per_page=100&page=2",
+    ]
+
+
+def test_a_short_first_page_stops_the_listing():
+    opener = FakeOpener([[{"id": 1, "body": "only"}]])
+    client = GitHubClient(token="t", repo="me/repo", opener=opener)
+    client.list_review_comments(7)
+    assert len(opener.requests) == 1
+    assert opener.requests[0][1].startswith("https://api.github.com/repos/me/repo/pulls/7/comments?")
+
+
+def _thread(comment_id, resolved):
+    return {"isResolved": resolved, "comments": {"nodes": [{"databaseId": comment_id}]}}
+
+
+def _threads(nodes, has_next=False, cursor=None):
+    page = {"hasNextPage": has_next, "endCursor": cursor}
+    data = {"repository": {"pullRequest": {"reviewThreads": {"pageInfo": page, "nodes": nodes}}}}
+    return {"data": data}
+
+
+def test_resolved_threads_are_found_by_their_first_comments_id():
+    opener = FakeOpener([_threads([_thread(11, True), _thread(12, False)])])
+    client = GitHubClient(token="t", repo="me/repo", opener=opener)
+    assert client.resolved_comment_ids(5) == {11}
+    assert opener.requests[0] == ("POST", "https://api.github.com/graphql")
+
+
+def test_resolved_threads_follow_the_cursor_through_every_page():
+    opener = FakeOpener([
+        _threads([_thread(1, True)], has_next=True, cursor="c1"),
+        _threads([_thread(2, True)]),
+    ])
+    client = GitHubClient(token="t", repo="me/repo", opener=opener)
+    assert client.resolved_comment_ids(5) == {1, 2}
+
+
+def test_a_graphql_reply_without_data_means_no_resolved_threads_not_a_crash():
+    opener = FakeOpener([{"errors": [{"message": "nope"}]}])
+    client = GitHubClient(token="t", repo="me/repo", opener=opener)
+    assert client.resolved_comment_ids(5) == set()
+
+
+def _ours(comment_id, fingerprint, **reactions):
+    return {
+        "id": comment_id,
+        "body": f"**HIGH** · x\n\nT\n\n<!-- groundtruth-review:finding {fingerprint} -->",
+        "reactions": {"+1": 0, "-1": 0, "heart": 5, **reactions},
+    }
+
+
+def test_thumbs_and_resolved_threads_are_reported_per_finding():
+    comments = [_ours(1, "fp-a", **{"-1": 2}), _ours(2, "fp-b", **{"+1": 1}), _ours(3, "fp-c")]
+    opener = FakeOpener([comments, _threads([_thread(3, True)])])
+    client = GitHubClient(token="t", repo="me/repo", opener=opener)
+    assert publish.collect_feedback(client, 9) == [
+        {"fingerprint": "fp-a", "kind": "reaction", "source": "github:-1", "count": 2},
+        {"fingerprint": "fp-b", "kind": "reaction", "source": "github:+1", "count": 1},
+        {"fingerprint": "fp-c", "kind": "resolved", "source": "github:resolved", "count": 1},
+    ]
+
+
+def test_other_reactions_and_other_peoples_comments_are_not_feedback():
+    human = {"id": 5, "body": "looks good to me", "reactions": {"+1": 9, "-1": 0}}
+    opener = FakeOpener([[human, _ours(1, "fp-a", heart=3)], _threads([])])
+    client = GitHubClient(token="t", repo="me/repo", opener=opener)
+    assert publish.collect_feedback(client, 9) == []  # a heart is not a verdict; a human's comment isn't ours
+
+
+def test_no_comments_of_ours_means_no_graphql_call_at_all():
+    opener = FakeOpener([[{"id": 5, "body": "not ours", "reactions": {}}]])
+    client = GitHubClient(token="t", repo="me/repo", opener=opener)
+    assert publish.collect_feedback(client, 9) == []
+    assert len(opener.requests) == 1
+
+
+def test_a_failure_reading_feedback_costs_the_report_not_the_review():
+    class Failing:
+        def __call__(self, req):
+            raise publish.urllib.error.HTTPError(req.full_url, 403, "forbidden", {}, None)
+
+    client = GitHubClient(token="t", repo="me/repo", opener=Failing())
+    assert publish.collect_feedback(client, 9) == []

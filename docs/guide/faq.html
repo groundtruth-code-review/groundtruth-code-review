@@ -139,14 +139,14 @@
 <details id="how-mature-is-this">
   <summary>How mature is this?<a class="h-anchor" href="#how-mature-is-this" aria-label="Link to this question">#</a></summary>
   <div class="details-body">
-<p>Honestly: alpha. The pipeline, the CLI, the eval harness and three platform adapters are implemented and covered by 290 tests that run offline against fake model clients, plus labeled cases replayed on every build. What that does <i>not</i> prove is behaviour against a live model on your codebase at scale &mdash; no test can. Start it on one repository, read what it posts, and tune <code>min_confidence</code> before you turn it on everywhere.</p>
+<p>Honestly: alpha. The pipeline, the CLI, the eval harness and three platform adapters are implemented and covered by 370 tests that run offline against fake model clients, plus labeled cases replayed on every build. What that does <i>not</i> prove is behaviour against a live model on your codebase at scale &mdash; no test can. Start it on one repository, read what it posts, and tune <code>min_confidence</code> before you turn it on everywhere.</p>
   </div>
 </details>
 
 <details id="what-is-still-missing">
   <summary>What is still missing?<a class="h-anchor" href="#what-is-still-missing" aria-label="Link to this question">#</a></summary>
   <div class="details-body">
-<p>Publication to PyPI, so installing stops meaning a git URL; and a self-hosted server mode for Bitbucket Data Center, which is the one platform with no free per-pull-request CI container. The scoped design for the second is in <a href="https://github.com/groundtruth-code-review/groundtruth-code-review/blob/main/docs/server-mode-design.md">docs/server-mode-design.md</a>.</p>
+<p>Publication to PyPI, so installing stops meaning a git URL; and a self-hosted server mode for Bitbucket Data Center, which is the one platform with no free per-pull-request CI container. The scoped design for the second is in <a href="https://github.com/groundtruth-code-review/groundtruth-code-review/blob/main/docs/server-mode-design.md">docs/server-mode-design.md</a>. Letting feedback tune the reviewer automatically is also not built, on purpose.</p>
   </div>
 </details>
       <div class="doc-nextprev">

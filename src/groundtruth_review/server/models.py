@@ -29,6 +29,7 @@ class FindingEntry(BaseModel):
     fingerprint: str
     dropped_at: str | None = None
     reason: str | None = None
+    proof: str | None = None
 
 
 class Outcome(BaseModel):
@@ -47,6 +48,15 @@ class Outcome(BaseModel):
     estimated_cost_usd: float | None = None
 
 
+class FeedbackEntry(BaseModel):
+    """One kind of reaction to one finding, as an adapter saw it on the pull request."""
+
+    fingerprint: str
+    kind: str  # "reaction" | "resolved"
+    source: str  # "<platform>:<signal>", e.g. "github:-1"
+    count: int = Field(default=1, ge=1)
+
+
 class IngestRequest(BaseModel):
     """What a CI adapter POSTs to `/reviews` after a run, if
     `GROUNDTRUTH_INGEST_URL` is set. The adapter supplies the platform
@@ -62,3 +72,4 @@ class IngestRequest(BaseModel):
     started_at: datetime
     finished_at: datetime
     outcome: Outcome
+    feedback: list[FeedbackEntry] = Field(default_factory=list)
